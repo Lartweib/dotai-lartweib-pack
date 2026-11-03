@@ -1,0 +1,40 @@
+{
+  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
+  //
+  // tooling profile hooks (DESIGN 4.3): lint the edited file by extension and marker.
+  // Matchers name each harness's own edit tools, in per-harness blocks (no shell tool here, so
+  // the Claude Code PowerShell tool does not apply).
+  // Timeout 90 s: tooling-check.mjs keeps all checks of one edit within CHECK_BUDGET_MS (75 s).
+  // agy commands carry no quotes (agy runs hooks through cmd /c; see the godot profile).
+  //   Claude Code: Edit, Write, MultiEdit
+  //   OpenCode: edit, write (anchored: the plugin tests an unanchored regex, and "todowrite" exists)
+  //   agy: the names `agy plugin validate` (1.4.12) suggests for Claude's Edit and Write,
+  //        plus multi_replace_file_content (TODO(trial): agy edit names and its TargetFile field)
+  // TODO(engine): bare `node <path>` command; see the godot profile's hooks.jsonc.
+  "version": 1,
+  "claudecode": {
+    "hooks": {
+      "postToolUse": [
+        { "matcher": "Edit|Write|MultiEdit", "command": "node ${DOTAI_PROJECT_TOOLS}/tooling-check.mjs", "timeout": 90 }
+      ]
+    }
+  },
+  "opencode": {
+    "hooks": {
+      "postToolUse": [
+        { "matcher": "^(edit|write)$", "command": "node ${DOTAI_PROJECT_TOOLS}/tooling-check.mjs", "timeout": 90 }
+      ]
+    }
+  },
+  "antigravity-cli": {
+    "hooks": {
+      "postToolUse": [
+        {
+          "matcher": "replace_file_content|multi_replace_file_content|edit_file|write_to_file|write_file",
+          "command": "node ${DOTAI_PROJECT_TOOLS}/tooling-check.mjs",
+          "timeout": 90
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  // Base secrets, user scope (DESIGN §3, confirmed 2026-10-31; pack 0038). The same list as
+  // base/dotai/tools/deny-paths.base.txt, which the shell guard reads; keep both in step (a test
+  // in base/tests/wiring.test.mjs checks it). Only reads are denied.
+  //
+  // No shared categories: rulesync 41.0.0 passes patterns through, and each harness reads them
+  // differently, so each has its own block (a tool-scoped category replaces the shared one).
+  //   Claude Code  gitignore patterns (a bare name matches at any depth, `~/` is the home
+  //                directory, measurement 9). There is no `!` and deny wins over allow, so
+  //                `.env.*` is spelled out per file, which keeps `.env.example` readable.
+  //   OpenCode     wildcards over the path, last matching rule wins; this is OpenCode's own
+  //                default read block plus the secrets. TODO(trial): whether `~/` is expanded.
+  //   agy          plain paths only, absolute or relative to the workspace; a glob matches
+  //                nothing, so `.env.*` is spelled out per file as for Claude Code, and the other
+  //                glob entries are covered by the shell and read guards alone.
+  //                TODO(trial): rulesync warns that agy may not expand `~/`.
+  "permission": {},
+  "claudecode": {
+    "permission": {
+      "read": {
+        ".env": "deny",
+        ".env.local": "deny",
+        ".env.*.local": "deny",
+        ".env.dev": "deny",
+        ".env.development": "deny",
+        ".env.prod": "deny",
+        ".env.production": "deny",
+        ".env.preview": "deny",
+        ".env.staging": "deny",
+        ".env.test": "deny",
+        "*.pem": "deny",
+        "*.key": "deny",
+        "id_rsa*": "deny",
+        "~/.ssh/**": "deny",
+        "~/.aws/**": "deny",
+        "~/.config/gcloud/**": "deny",
+        "~/.wrangler/**": "deny",
+        "~/.claude/.credentials.json": "deny",
+        "~/.gemini/oauth_creds.json": "deny"
+      }
+    }
+  },
+  "opencode": {
+    "permission": {
+      "read": {
+        "*": "allow",
+        "*.env": "deny",
+        "*.env.*": "deny",
+        "*.pem": "deny",
+        "*.key": "deny",
+        "*id_rsa*": "deny",
+        "~/.ssh/*": "deny",
+        "~/.aws/*": "deny",
+        "~/.config/gcloud/*": "deny",
+        "~/.wrangler/*": "deny",
+        "~/.claude/.credentials.json": "deny",
+        "~/.gemini/oauth_creds.json": "deny",
+        "*.env.example": "allow"
+      }
+    }
+  },
+  "antigravity-cli": {
+    "permission": {
+      "read": {
+        ".env": "deny",
+        ".env.local": "deny",
+        ".env.dev": "deny",
+        ".env.development": "deny",
+        ".env.prod": "deny",
+        ".env.production": "deny",
+        ".env.preview": "deny",
+        ".env.staging": "deny",
+        ".env.test": "deny",
+        "~/.ssh": "deny",
+        "~/.aws": "deny",
+        "~/.config/gcloud": "deny",
+        "~/.wrangler": "deny",
+        "~/.claude/.credentials.json": "deny",
+        "~/.gemini/oauth_creds.json": "deny"
+      }
+    }
+  }
+}

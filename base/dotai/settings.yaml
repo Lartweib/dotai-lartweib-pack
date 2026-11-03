@@ -1,0 +1,20 @@
+# Base settings, user scope (PACK-FORMAT, Settings): one block per harness, merged as-is into
+# that harness's settings file. OpenCode has no statusline setting and needs nothing here.
+#
+# Statusline (pack 0017): one tool for both harnesses, told which one runs it, since each gives
+# quota only to its own statusline (base/dotai/tools/statusline.mjs). Claude Code refreshes it
+# every 10 s and runs the command through a shell, so it calls node on the .mjs directly, the
+# hooks' form (staging writes the user tools directory into ${DOTAI_TOOLS} in settings values
+# too, PACK-FORMAT), instead of ${DOTAI_TOOL:statusline}, which starts PowerShell on Windows at
+# every refresh. agy runs its command without a shell and needs the bare tool command.
+claudecode:
+  statusLine: { type: command, command: 'node "${DOTAI_TOOLS}/statusline.mjs" claudecode', refreshInterval: 10 }
+  env:
+    # Bash timeouts from the author's history (DESIGN §3, 2026-10-31): p99 ~530 s.
+    BASH_DEFAULT_TIMEOUT_MS: "600000"
+    BASH_MAX_TIMEOUT_MS: "1800000"
+    # Safety net for launches the Agent hook does not see (0030).
+    CLAUDE_CODE_SUBAGENT_MODEL: sonnet
+antigravity-cli:
+  # agy runs the command with the path bare (HARNESS-NOTES, statusline command).
+  statusLine: { type: command, command: "${DOTAI_TOOL:statusline} antigravity", enabled: true }

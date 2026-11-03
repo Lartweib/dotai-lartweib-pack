@@ -1,0 +1,55 @@
+schema: dotai.pack/v1
+name: dotai-lartweib-pack
+version: 0.1.0
+engine: ">=0.1.0" # the engine has no release yet; only the syntax is checked today
+rulesync: 41.0.0 # the only version whose checksum the engine embeds (dotai 0029)
+harnesses: [claudecode, antigravity-cli]
+optional-harnesses: [opencode] # minimal, occasional use (0009): an install skips it when absent
+
+profiles: # set from 0044. Hints are file globs from the project root; node_modules/<pkg>/ stands in
+  # for a package.json dependency, which hints cannot name (engine question).
+  godot:
+    path: profiles/godot
+    description: Godot 4 games in GDScript.
+    hints: [project.godot, export_presets.cfg]
+  autonomous-orchestra:
+    path: profiles/autonomous-orchestra
+    description: Long autonomous work on any stack (workflows, scheduled runs, monitors).
+    hints: [] # suggested on demand, not by markers
+  web:
+    path: profiles/web
+    description: Web framework, build and checks (Astro, Next.js, Vite).
+    hints: [astro.config.*, next.config.*, svelte.config.*, vite.config.*, index.html]
+  ui:
+    path: profiles/ui
+    description: Design skills and browser capture, for any project with a UI.
+    hints: [DESIGN.md, tailwind.config.*, node_modules/tailwindcss/, playwright.config.*, astro.config.*, next.config.*, vite.config.*]
+  seo:
+    path: profiles/seo
+    description: SEO audits, applied on demand.
+    hints: [] # suggested on demand, like autonomous-orchestra
+  cloudflare:
+    path: profiles/cloudflare
+    description: Cloudflare Workers and Pages with wrangler.
+    hints: [wrangler.toml, wrangler.jsonc, wrangler.json]
+  video:
+    path: profiles/video
+    description: Making and analyzing video.
+    hints: [remotion.config.*, node_modules/@remotion/, hyperframes/]
+  tooling:
+    path: profiles/tooling
+    description: CLIs, scripts and developer tooling (Go, Python).
+    hints: [go.mod, pyproject.toml, pnpm-workspace.yaml, biome.json, biome.jsonc] # no Cargo.toml: no Rust project yet
+  desktop:
+    path: profiles/desktop
+    description: Desktop apps with Electron.
+    hints: [electron-builder.*, forge.config.*, node_modules/electron/] # or a "build" key in package.json
+
+variants:
+  standalone:
+    path: variants/standalone
+    default: true
+  orca:
+    path: variants/orca
+    detect: { command: orca }
+    shared-skills: true

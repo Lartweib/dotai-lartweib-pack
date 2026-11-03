@@ -1,0 +1,70 @@
+{
+  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
+  //
+  // Base hooks, user scope. The logic lives in ~/.dotai/tools; node is the one runtime every
+  // harness here has, so the hooks call the .mjs entry points directly (a PowerShell wrapper
+  // would add its start-up time to every tool call). Each command names its harness as the
+  // first argument, so a tool never guesses it from the payload shape.
+  //   shell-guard    destructive commands ask, denied paths are denied (pack 0038)
+  //   read-guard     denied paths are refused in every harness (0038), and full reads of large
+  //                  artifacts (0039)
+  //   agent-guard    model on every launch, declared effort, Opus allowlist (0030, 0037), and
+  //                  allowed launches appended to the delegate launch log;
+  //                  Claude Code only: OpenCode takes the model from the definition and agy
+  //                  launches go through delegate, which validates the pair (0030)
+  //   session-start  onboarding hint (0040) and Engram preferences (0041, 0042)
+  //   memory-compact session summary to Engram (0042); agy has no PreCompact event
+  // OpenCode gets the guards only: its rulesync plugin (staged 2026-11-02) runs sessionStart and
+  // compaction commands with no stdin and drops their output, so neither hook could work there.
+  // No shared "hooks": agy's SessionStart needs its own JSON output, and every other event
+  // has a matcher or skips agy, so each harness has its own block.
+  //
+  // Matchers name each harness's own tools: Claude Code "Bash|PowerShell", "Read", "Agent|Task"
+  // (Task is the tool's former name); OpenCode "bash" and "^read$" (the plugin tests an
+  // unanchored, case-sensitive regex); agy "run_command" and "view_file" (agy 1.4.12 hooks docs;
+  // TODO(trial): agy's file-read tool name and its fields).
+  //
+  // Quoting (PACK-FORMAT, HARNESS-NOTES): Claude Code (Git Bash) and OpenCode (Bun Shell) get the
+  // path in double quotes; agy runs commands through `cmd /c`, where every `"` arrives as `\"`,
+  // so agy commands carry no quotes and its tools path cannot hold spaces.
+  //
+  // Timeouts: the guards read a few small files (10 s covers a cold node start); session-start
+  // waits at most 8 s for `engram search`; memory-compact at most 20 s for `engram save`.
+  "version": 1,
+  // Empty but required: rulesync 41 refuses a hooks file without a top-level "hooks" record.
+  "hooks": {},
+  "claudecode": {
+    "hooks": {
+      "sessionStart": [
+        { "command": "node \"${DOTAI_TOOLS}/session-start.mjs\" claudecode", "timeout": 15 }
+      ],
+      "preToolUse": [
+        { "matcher": "Bash|PowerShell", "command": "node \"${DOTAI_TOOLS}/shell-guard.mjs\" claudecode", "timeout": 10 },
+        { "matcher": "Read", "command": "node \"${DOTAI_TOOLS}/read-guard.mjs\" claudecode", "timeout": 10 },
+        { "matcher": "Agent|Task", "command": "node \"${DOTAI_TOOLS}/agent-guard.mjs\" claudecode", "timeout": 10 }
+      ],
+      "preCompact": [
+        { "command": "node \"${DOTAI_TOOLS}/memory-compact.mjs\" claudecode", "timeout": 30 }
+      ]
+    }
+  },
+  "opencode": {
+    "hooks": {
+      "preToolUse": [
+        { "matcher": "bash", "command": "node \"${DOTAI_TOOLS}/shell-guard.mjs\" opencode", "timeout": 10 },
+        { "matcher": "^read$", "command": "node \"${DOTAI_TOOLS}/read-guard.mjs\" opencode", "timeout": 10 }
+      ]
+    }
+  },
+  "antigravity-cli": {
+    "hooks": {
+      "sessionStart": [
+        { "command": "node ${DOTAI_TOOLS}/session-start.mjs antigravity", "timeout": 15 }
+      ],
+      "preToolUse": [
+        { "matcher": "run_command", "command": "node ${DOTAI_TOOLS}/shell-guard.mjs antigravity", "timeout": 10 },
+        { "matcher": "view_file", "command": "node ${DOTAI_TOOLS}/read-guard.mjs antigravity", "timeout": 10 }
+      ]
+    }
+  }
+}

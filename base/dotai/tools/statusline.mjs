@@ -1,0 +1,249 @@
+// Statusline for Claude Code and agy (pack 0017, layout update 2026-10-31): three aligned lines,
+//   CC      5h 41% ↻ 2h 13m   │ wk 22% ↻ 3d 4h 10m   │ Opus · ctx 34%
+//   agy     5h  8% ↻ 4h 2m    │ wk  5% ↻ 6d 1h 0m    │ 3.8 Flash (Medium)
+//   agy 3p  5h  0% ↻ 5h 0m    │ wk  0% ↻ 6d 1h 0m    │ updated 2h 0m ago
+// Each harness gives quota only to its own statusline command, on stdin: Claude Code
+// `rate_limits.five_hour|seven_day` (used_percentage, resets_at), agy `quota` with the pools
+// `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly` (used_percentage or remaining_fraction,
+// reset_in_seconds or reset_time). So each run writes its harness's snapshot and reads the other's:
+//   ~/.claude/rate_limits.json                    (fields kept from the old statusline)
+//   ~/.gemini/antigravity-cli/rate_limits.json    (read by delegate, RUNTIME; now also with each
+//                                                  pool's reset as an absolute time, 0017)
+// A snapshot older than STALE_SEC shows `?` and its age (unknown counts as available, 0022).
+// A payload without its quota block (`rate_limits` before Claude Code's first answer, `quota` in
+// agy) writes nothing, so the last good snapshot survives; the line shows it with the payload's
+// model and context. A snapshot is replaced atomically or not at all.
+// A fourth line, `delegate: N running · last OK 2m ago`, comes from the launch log that the
+// delegate backend and the agent guard write (<pack home>/launches.jsonl, delegate-core.mjs);
+// without that log, or with an empty one, the line is omitted, and the delegate code is loaded only
+// when the log exists.
+// No subprocesses, two or three small files: it runs on every refresh.
+// Entry point: `node statusline.mjs <claudecode|antigravity>`, stdin from the harness.
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+import { harnessArg, isObject, packHome, readStdin } from './hook-lib.mjs'
+
+export const STALE_SEC = 15 * 60 // TODO(trial): tune against agy's refresh rate
+const LABEL_WIDTH = 8
+
+const num = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
+const pctOf = v => (num(v) === null ? null : Math.max(0, Math.min(100, Math.round(Number(v)))))
+// Epoch seconds; a value in milliseconds is converted.
+const epoch = v => {
+  const n = num(v)
+  return n === null ? null : n > 1e12 ? Math.round(n / 1000) : Math.round(n)
+}
+
+export function formatDuration(sec) {
+  if (sec === null || sec === undefined || !Number.isFinite(sec)) return '?'
+  if (sec <= 0) return 'now'
+  const s = Math.floor(sec)
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  return `${m}m`
+}
+
+const modelName = m => {
+  const raw = isObject(m) ? (m.display_name ?? m.id ?? '') : (m ?? '')
+  return String(raw).replace(/^Gemini\s*/i, '').trim()
+}
+
+// Normalized shape: { ts, model, ctx, five: { pct, reset }, week: { pct, reset } } for Claude;
+// { ts, model, ctx, gemini: { five, week }, p3: { five, week } } for agy.
+export function fromClaude(d, now) {
+  const rl = isObject(d?.rate_limits) ? d.rate_limits : {}
+  const win = w => ({ pct: pctOf(w?.used_percentage), reset: epoch(w?.resets_at) })
+  return { ts: now, model: modelName(d?.model), ctx: pctOf(d?.context_window?.used_percentage), five: win(rl.five_hour), week: win(rl.seven_day) }
+}
+
+function agyBucket(b, now) {
+  if (!isObject(b)) return { pct: null, reset: null }
+  let pct = pctOf(b.used_percentage)
+  if (pct === null && num(b.remaining_fraction) !== null) pct = pctOf((1 - Number(b.remaining_fraction)) * 100)
+  let reset = null
+  if (num(b.reset_in_seconds) !== null) reset = now + Math.round(Number(b.reset_in_seconds))
+  else if (b.reset_time) {
+    const t = Date.parse(b.reset_time)
+    if (Number.isFinite(t)) reset = Math.round(t / 1000)
+  } else reset = epoch(b.resets_at)
+  return { pct, reset }
+}
+
+export function fromAgy(d, now) {
+  const q = isObject(d?.quota) ? d.quota : {}
+  return {
+    ts: now,
+    model: modelName(d?.model),
+    ctx: pctOf(d?.context_window?.used_percentage),
+    gemini: { five: agyBucket(q['gemini-5h'], now), week: agyBucket(q['gemini-weekly'], now) },
+    p3: { five: agyBucket(q['3p-5h'], now), week: agyBucket(q['3p-weekly'], now) },
+  }
+}
+
+const claudeSnapshot = c => ({
+  ts: c.ts,
+  model: c.model || null,
+  five_hour_pct: c.five.pct,
+  five_hour_resets: c.five.reset,
+  seven_day_pct: c.week.pct,
+  seven_day_resets: c.week.reset,
+  context_pct: c.ctx,
+})
+const claudeFromSnapshot = j =>
+  isObject(j) && num(j.ts) !== null
+    ? {
+        ts: Number(j.ts),
+        model: String(j.model ?? ''),
+        ctx: pctOf(j.context_pct),
+        five: { pct: pctOf(j.five_hour_pct), reset: epoch(j.five_hour_resets) },
+        week: { pct: pctOf(j.seven_day_pct), reset: epoch(j.seven_day_resets) },
+      }
+    : null
+
+const agySnapshot = a => ({
+  ts: a.ts,
+  model: a.model || null,
+  context_pct: a.ctx,
+  gemini_5h_pct: a.gemini.five.pct,
+  gemini_7d_pct: a.gemini.week.pct,
+  p3_5h_pct: a.p3.five.pct,
+  p3_7d_pct: a.p3.week.pct,
+  gemini_5h_resets: a.gemini.five.reset,
+  gemini_7d_resets: a.gemini.week.reset,
+  p3_5h_resets: a.p3.five.reset,
+  p3_7d_resets: a.p3.week.reset,
+})
+const agyFromSnapshot = j =>
+  isObject(j) && num(j.ts) !== null
+    ? {
+        ts: Number(j.ts),
+        model: String(j.model ?? ''),
+        ctx: pctOf(j.context_pct),
+        gemini: { five: { pct: pctOf(j.gemini_5h_pct), reset: epoch(j.gemini_5h_resets) }, week: { pct: pctOf(j.gemini_7d_pct), reset: epoch(j.gemini_7d_resets) } },
+        p3: { five: { pct: pctOf(j.p3_5h_pct), reset: epoch(j.p3_5h_resets) }, week: { pct: pctOf(j.p3_7d_pct), reset: epoch(j.p3_7d_resets) } },
+      }
+    : null
+
+const colorOn = () => !process.env.NO_COLOR
+function paint(pct, text) {
+  if (!colorOn() || pct === null) return text
+  const code = pct >= 80 ? 31 : pct >= 50 ? 33 : 32
+  return `\x1b[${code}m${text}\x1b[0m`
+}
+
+export function render({ cc, agy, now }) {
+  const fresh = s => !!s && now - s.ts <= STALE_SEC
+  const cell = (w, ok) => ({ pct: ok ? w.pct : null, cd: ok && w.pct !== null ? formatDuration(w.reset === null ? null : w.reset - now) : '?' })
+  const ccOk = fresh(cc)
+  const agyOk = fresh(agy)
+  const age = s => (now - s.ts < 60 ? 'updated now' : `updated ${formatDuration(now - s.ts)} ago`)
+  const rows = [
+    {
+      label: 'CC',
+      five: cc ? cell(cc.five, ccOk) : cell({}, false),
+      week: cc ? cell(cc.week, ccOk) : cell({}, false),
+      extra: !cc ? 'no data' : ccOk ? [cc.model || '?', cc.ctx === null ? null : `ctx ${cc.ctx}%`].filter(Boolean).join(' · ') : age(cc),
+    },
+    {
+      label: 'agy',
+      five: agy ? cell(agy.gemini.five, agyOk) : cell({}, false),
+      week: agy ? cell(agy.gemini.week, agyOk) : cell({}, false),
+      extra: agy?.model || '',
+    },
+    {
+      label: 'agy 3p',
+      five: agy ? cell(agy.p3.five, agyOk) : cell({}, false),
+      week: agy ? cell(agy.p3.week, agyOk) : cell({}, false),
+      extra: agy ? age(agy) : 'no data',
+    },
+  ]
+  const pctText = c => (c.pct === null ? '?' : String(c.pct))
+  const pw = Math.max(2, ...rows.flatMap(r => [pctText(r.five).length, pctText(r.week).length]))
+  const w5 = Math.max(...rows.map(r => r.five.cd.length))
+  const w7 = Math.max(...rows.map(r => r.week.cd.length))
+  const col = (c, w) => `${paint(c.pct, `${pctText(c).padStart(pw)}%`)} ↻ ${c.cd.padEnd(w)}`
+  return rows
+    .map(r => `${r.label.padEnd(LABEL_WIDTH)}5h ${col(r.five, w5)} │ wk ${col(r.week, w7)} │ ${r.extra}`.trimEnd())
+    .join('\n')
+}
+
+const readJson = f => {
+  try {
+    return JSON.parse(readFileSync(f, 'utf8').replace(/^﻿/, ''))
+  } catch {
+    return null
+  }
+}
+// Atomic or nothing: a reader holding the file on Windows makes the rename fail, and then this
+// refresh is skipped (the next one writes it) rather than writing the file in place, which a
+// concurrent reader could see half-written.
+function writeJson(f, data) {
+  const tmp = `${f}.${process.pid}.tmp`
+  try {
+    mkdirSync(dirname(f), { recursive: true })
+    writeFileSync(tmp, JSON.stringify(data))
+    renameSync(tmp, f)
+  } catch {
+    try {
+      rmSync(tmp, { force: true })
+    } catch {}
+  }
+}
+
+// The last good snapshot with the live model and context, for a payload that carries no quota.
+const withLive = (prev, cur) => (prev ? { ...prev, model: cur.model || prev.model, ctx: cur.ctx ?? prev.ctx } : cur)
+
+// The delegate line, or null. The pack home is the one delegate-core.mjs uses.
+export async function delegateLine(env = process.env, home = homedir(), now = Date.now()) {
+  const log = join(packHome(env, home), 'launches.jsonl')
+  const has = f => existsSync(f) && statSync(f).size > 0
+  try {
+    if (!has(log) && !has(`${log}.1`)) return null
+    const { readLog, statusLine } = await import('./delegate-core.mjs')
+    const entries = readLog(log)
+    return entries.length ? statusLine(entries, now) : null
+  } catch {
+    return null
+  }
+}
+
+async function main() {
+  const raw = await readStdin()
+  if (!raw.trim()) return
+  let d
+  try {
+    d = JSON.parse(raw)
+  } catch {
+    return
+  }
+  if (!isObject(d)) return
+  const now = Math.floor(Date.now() / 1000)
+  const home = homedir()
+  const ccFile = join(home, '.claude', 'rate_limits.json')
+  const agyFile = join(home, '.gemini', 'antigravity-cli', 'rate_limits.json')
+  const harness = harnessArg() ?? (isObject(d.quota) ? 'antigravity' : 'claudecode')
+  let cc
+  let agy
+  if (harness === 'antigravity') {
+    agy = fromAgy(d, now)
+    if (isObject(d.quota)) writeJson(agyFile, agySnapshot(agy))
+    else agy = withLive(agyFromSnapshot(readJson(agyFile)), agy)
+    cc = claudeFromSnapshot(readJson(ccFile))
+  } else {
+    cc = fromClaude(d, now)
+    // An empty object (`rate_limits: {}`) carries no quota either: the snapshot is kept.
+    if (isObject(d.rate_limits) && Object.keys(d.rate_limits).length) writeJson(ccFile, claudeSnapshot(cc))
+    else cc = withLive(claudeFromSnapshot(readJson(ccFile)), cc)
+    agy = agyFromSnapshot(readJson(agyFile))
+  }
+  const extra = await delegateLine(process.env, home)
+  process.stdout.write(`${render({ cc, agy, now })}\n${extra ? `${extra}\n` : ''}`)
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()

@@ -1,0 +1,5 @@
+This skill is copied unmodified from the Cloudflare skills repository
+(https://github.com/cloudflare/skills, commit d924cd8f59e75e08fd3dd52843bb2776de35c77e,
+2026-09-05), licensed under the Apache License 2.0 (see LICENSE).
+Copyright Cloudflare, Inc. The dotai reference pack ships it as a subset of the
+cloudflare plugin, which cannot be installed per skill.

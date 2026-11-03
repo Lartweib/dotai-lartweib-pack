@@ -1,0 +1,4 @@
+# Extra Opus allowlist entries for the base Agent hook (pack 0037).
+# One "<agent> <model>" per line.
+# worker on Opus: art work (sculpting, art against references).
+worker opus

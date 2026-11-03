@@ -1,0 +1,49 @@
+{
+  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
+  //
+  // godot profile hooks (pack 0045). The logic lives in .dotai/tools; node is the one
+  // runtime every harness here has, so the hooks call the .mjs entry points directly.
+  //
+  // Matchers name each harness's own shell tools, so the guard sits in per-harness blocks:
+  //   Claude Code "Bash|PowerShell" (the PowerShell tool on Windows; hooks matching it fire,
+  //   community-confirmed, not in the hooks reference); OpenCode "bash" (the rulesync plugin also
+  //   tests "shell" as "bash"); agy "run_command" (agy 1.4.12 hooks docs, `agy plugin validate`).
+  // Such a block would silently drop a shared preToolUse entry from another layer, which is why
+  // the shared "hooks" never hold an event with a matcher.
+  //
+  // agy runs hook commands through `cmd /c` on Windows and every `"` reaches cmd as `\"`, so agy
+  // commands carry no quotes and its paths no spaces (HARNESS-NOTES).
+  // TODO(engine): the command is `node <path>`, bare. A project path with spaces breaks it in
+  // every harness; quoting fixes Claude Code and OpenCode only. ${DOTAI_TOOL:<name>} in hook
+  // commands is planned (engine answer 2026-11-02); for agy a path with spaces cannot work at all.
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node ${DOTAI_PROJECT_TOOLS}/godot-state.mjs",
+        "timeout": 15
+      }
+    ]
+  },
+  "claudecode": {
+    "hooks": {
+      "preToolUse": [
+        { "matcher": "Bash|PowerShell", "command": "node ${DOTAI_PROJECT_TOOLS}/godot-guard.mjs", "timeout": 15 }
+      ]
+    }
+  },
+  "opencode": {
+    "hooks": {
+      "preToolUse": [
+        { "matcher": "bash", "command": "node ${DOTAI_PROJECT_TOOLS}/godot-guard.mjs", "timeout": 15 }
+      ]
+    }
+  },
+  "antigravity-cli": {
+    "hooks": {
+      "preToolUse": [
+        { "matcher": "run_command", "command": "node ${DOTAI_PROJECT_TOOLS}/godot-guard.mjs", "timeout": 15 }
+      ]
+    }
+  }
+}

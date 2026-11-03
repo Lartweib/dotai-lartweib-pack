@@ -1,0 +1,16 @@
+{
+  // web profile hooks (DESIGN 4.1): one typecheck per turn when web files changed.
+  // stop has no matcher, so it stays in the shared "hooks" (no per-harness blocks here).
+  // Timeout 180 s: web-check.mjs clamps web.checkTimeoutSec to MAX_CHECK_SEC (160 s) below it.
+  // agy inherits the shared hooks and runs them through cmd /c: no quotes in the command.
+  // TODO(engine): bare `node <path>` command; see the godot profile's hooks.jsonc.
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "node ${DOTAI_PROJECT_TOOLS}/web-check.mjs",
+        "timeout": 180
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+# Extra artifact paths for the base size-based Read hook (pack 0039).
+# One gitignore-style pattern per line.
+node_modules/
+dist/
+.astro/
+.next/
+.vercel/
+.wrangler/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+lighthouse*.json
+*.lighthouse.json
+*.log

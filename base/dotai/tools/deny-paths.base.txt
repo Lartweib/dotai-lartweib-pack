@@ -1,0 +1,22 @@
+# Denied paths for the base shell and read guards (pack 0038): a command that reads one of them
+# (interpreter, cmd, upload, plain reader or copier, or `<`) and a file read of one are denied.
+# Gitignore-style, one pattern per line; `~/` is the home directory; `!` undoes a match, but
+# only in the user tools directory: a project's or profile's `!` line is ignored.
+# `.env.*` covers .env.local, .env.prod, .env.production, .env.dev, .env.development,
+# .env.preview, .env.staging and .env.test; permissions.jsonc spells them out per file.
+# Same secrets as base/.rulesync/permissions.jsonc (DESIGN §3, confirmed 2026-10-31); keep both in
+# step. Profiles and projects add their own in deny-paths.<name>.txt.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+~/.ssh/
+~/.aws/
+~/.config/gcloud/
+~/.wrangler/
+~/.claude/.credentials.json
+# TODO(trial): agy keeps its login in the OS keyring (HARNESS-NOTES); confirm the name of any
+# OAuth token file under ~/.gemini/.
+~/.gemini/oauth_creds.json

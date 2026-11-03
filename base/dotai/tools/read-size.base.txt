@@ -1,0 +1,24 @@
+# Artifact paths for the base size-based Read hook (pack 0039), the ones 0014 (P3) had in deny.
+# One gitignore-style pattern per line. A full read of a large matching file is refused with
+# advice to read a range or use rg; small files and ranges pass. Profiles add their own in
+# read-size.<profile>.txt.
+node_modules/
+dist/
+target/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lock
+bun.lockb
+Cargo.lock
+go.sum
+poetry.lock
+uv.lock
+composer.lock
+Gemfile.lock
+*.log
+lighthouse*.json
+*.lighthouse.json
+*.min.js
+*.min.css
+*.map
