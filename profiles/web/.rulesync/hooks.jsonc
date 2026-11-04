@@ -1,16 +1,34 @@
 {
+  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
+  //
   // web profile hooks (DESIGN 4.1): one typecheck per turn when web files changed.
-  // stop has no matcher, so it stays in the shared "hooks" (no per-harness blocks here).
+  // stop has no matcher, but it sits in per-harness blocks so that OpenCode does not get it:
+  // rulesync 41.0.0 renders a shared stop in the OpenCode project plugin as a
+  // session.execution.succeeded subscription that runs a bare `node` call with no stdin payload,
+  // no .nothrow().quiet(), no timeout and unquoted paths; the same rendering hangs OpenCode's
+  // write tool for postToolUse (trial 2026-11-04), and with no payload it could not decide
+  // anything. The engine does not patch rulesync's output (decision 2026-11-05). Move stop back
+  // to the shared "hooks" (or add an "opencode" block) when rulesync pipes the payload to these
+  // hooks; an upstream report is pending. No other layer of the project scope has a shared stop,
+  // so these blocks shadow nothing (hooks-shadowed).
   // Timeout 180 s: web-check.mjs clamps web.checkTimeoutSec to MAX_CHECK_SEC (160 s) below it.
-  // agy inherits the shared hooks and runs them through cmd /c: no quotes in the command.
+  // agy runs hooks through cmd /c: no quotes in its command.
   // TODO(engine): bare `node <path>` command; see the godot profile's hooks.jsonc.
   "version": 1,
-  "hooks": {
-    "stop": [
-      {
-        "command": "node ${DOTAI_PROJECT_TOOLS}/web-check.mjs",
-        "timeout": 180
-      }
-    ]
+  // Empty but required: rulesync 41 refuses a hooks file without a top-level "hooks" record.
+  "hooks": {},
+  "claudecode": {
+    "hooks": {
+      "stop": [
+        { "command": "node ${DOTAI_PROJECT_TOOLS}/web-check.mjs", "timeout": 180 }
+      ]
+    }
+  },
+  "antigravity-cli": {
+    "hooks": {
+      "stop": [
+        { "command": "node ${DOTAI_PROJECT_TOOLS}/web-check.mjs", "timeout": 180 }
+      ]
+    }
   }
 }

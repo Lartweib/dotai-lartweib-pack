@@ -7,22 +7,20 @@
   // Timeout 90 s: tooling-check.mjs keeps all checks of one edit within CHECK_BUDGET_MS (75 s).
   // agy commands carry no quotes (agy runs hooks through cmd /c; see the godot profile).
   //   Claude Code: Edit, Write, MultiEdit
-  //   OpenCode: edit, write (anchored: the plugin tests an unanchored regex, and "todowrite" exists)
   //   agy: the names `agy plugin validate` (1.4.12) suggests for Claude's Edit and Write,
   //        plus multi_replace_file_content (TODO(trial): agy edit names and its TargetFile field)
+  // No OpenCode hook: rulesync 41.0.0 renders a project postToolUse in the OpenCode plugin as a bare
+  // `node` call with no stdin payload, no .nothrow().quiet(), no timeout and unquoted paths; it hangs
+  // OpenCode's write tool (trial 2026-11-04), and with no payload it could not check anything. The
+  // engine does not patch rulesync's output (decision 2026-11-05). Restore the block, matcher
+  // "^(edit|write)$" (anchored: the plugin tests an unanchored regex, and "todowrite" exists), when
+  // rulesync pipes the payload to these hooks; an upstream report is pending.
   // TODO(engine): bare `node <path>` command; see the godot profile's hooks.jsonc.
   "version": 1,
   "claudecode": {
     "hooks": {
       "postToolUse": [
         { "matcher": "Edit|Write|MultiEdit", "command": "node ${DOTAI_PROJECT_TOOLS}/tooling-check.mjs", "timeout": 90 }
-      ]
-    }
-  },
-  "opencode": {
-    "hooks": {
-      "postToolUse": [
-        { "matcher": "^(edit|write)$", "command": "node ${DOTAI_PROJECT_TOOLS}/tooling-check.mjs", "timeout": 90 }
       ]
     }
   },

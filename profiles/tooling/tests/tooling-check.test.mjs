@@ -167,3 +167,16 @@ test('both wrappers exit 0 and stay silent for a file with no check', () => {
     assert.equal(r.stdout, '')
   }
 })
+
+// rulesync 41.0.0 renders the OpenCode project plugin's postToolUse as a bare `node` call with
+// no payload, no nothrow and no timeout: it hangs OpenCode's write tool (trial 2026-11-04).
+test('the hook is wired for Claude Code and agy only, never OpenCode', () => {
+  const hooks = JSON.parse(readFileSync(join(HERE, '..', '.rulesync', 'hooks.jsonc'), 'utf8').replace(/^\s*\/\/.*$/gm, ''))
+  assert.deepEqual(hooks.hooks ?? {}, {}, 'no shared hooks')
+  assert.equal(hooks.opencode?.hooks?.postToolUse, undefined, 'OpenCode has no postToolUse')
+  for (const h of ['claudecode', 'antigravity-cli']) {
+    const list = hooks[h]?.hooks?.postToolUse ?? []
+    assert.ok(list.some(e => e.command.includes('/tooling-check.mjs')), h)
+  }
+  assert.doesNotMatch(hooks['antigravity-cli'].hooks.postToolUse[0].command, /"/, 'agy commands carry no quotes')
+})

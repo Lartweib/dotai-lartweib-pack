@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -106,5 +106,19 @@ test('the state reaches each harness in its own format', () => {
     assert.match(msg, /STATE-MARK/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// OpenCode's rulesync plugin runs a sessionStart command with no payload and drops its output
+// (base hooks.jsonc), so the state hook sits in the Claude Code and agy blocks only.
+test('the state hook is wired for Claude Code and agy only, never OpenCode', () => {
+  const hooks = JSON.parse(readFileSync(join(dirname(TOOL), '..', '..', '.rulesync', 'hooks.jsonc'), 'utf8').replace(/^\s*\/\/.*$/gm, ''))
+  assert.deepEqual(hooks.hooks ?? {}, {}, 'no shared hooks: OpenCode would get them')
+  assert.equal(hooks.opencode?.hooks?.sessionStart, undefined, 'OpenCode has no sessionStart')
+  for (const h of ['claudecode', 'antigravity-cli']) {
+    const [e, ...rest] = hooks[h]?.hooks?.sessionStart ?? []
+    assert.equal(rest.length, 0, h)
+    assert.equal(e?.command, 'node ${DOTAI_PROJECT_TOOLS}/godot-state.mjs', h)
+    assert.equal(e.timeout, 15, h)
   }
 })
