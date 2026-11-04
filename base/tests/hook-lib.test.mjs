@@ -74,9 +74,12 @@ test('the shell kind follows the tool, then the platform and environment', () =>
   assert.equal(shellKind(ps, {}, 'win32'), 'powershell')
   assert.equal(shellKind(agy, {}, 'linux'), 'posix')
   assert.equal(shellKind(cc, {}, 'win32'), 'posix') // Claude Code's Bash tool is Git Bash on Windows
-  assert.equal(shellKind(agy, {}, 'win32'), 'windows')
-  assert.equal(shellKind(agy, { MSYSTEM: 'MINGW64' }, 'win32'), 'posix')
-  assert.equal(shellKind(agy, { SHELL: '/usr/bin/bash' }, 'win32'), 'posix')
+  assert.equal(shellKind(agy, {}, 'win32'), 'powershell')
+  assert.equal(shellKind(agy, { MSYSTEM: 'MINGW64' }, 'win32'), 'powershell') // agy uses PowerShell anyway
+  const oc = { harness: 'opencode', tool: 'bash' }
+  assert.equal(shellKind(oc, {}, 'win32'), 'windows')
+  assert.equal(shellKind(oc, { MSYSTEM: 'MINGW64' }, 'win32'), 'posix')
+  assert.equal(shellKind(oc, { SHELL: '/usr/bin/bash' }, 'win32'), 'posix')
 })
 
 test('stdin that never closes resolves empty after the idle deadline', async () => {
@@ -98,6 +101,11 @@ test('decisions print in each harness format', () => {
   const oc = JSON.parse(formatPreToolUse('opencode', 'ask', 'why'))
   assert.equal(oc.hookSpecificOutput.permissionDecision, 'deny')
   assert.deepEqual(JSON.parse(formatPreToolUse('antigravity', 'deny', 'x')), { decision: 'deny', reason: 'x' })
+  // agy runs the command on ask under an allow rule or skip-permissions, which the hook cannot
+  // see, so the guard denies instead.
+  const agy = JSON.parse(formatPreToolUse('antigravity', 'ask', 'why'))
+  assert.equal(agy.decision, 'deny')
+  assert.match(agy.reason, /^why agy runs the command on ask when an allow rule or skip-permissions applies/)
   // No decision prints nothing in every harness, agy included.
   assert.equal(formatPreToolUse('antigravity', null, ''), '')
   assert.equal(formatPreToolUse('opencode', null, ''), '')

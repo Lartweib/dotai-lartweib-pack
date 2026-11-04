@@ -37,7 +37,7 @@ const BIOME_BIN = 'node_modules/@biomejs/biome/bin/biome'
 
 export function filePathOf(p) {
   const a = p?.toolCall?.args
-  if (a) return String(a.TargetFile ?? a.AbsolutePath ?? a.file_path ?? '')
+  if (a) return String(a.Path ?? a.TargetFile ?? a.AbsolutePath ?? a.file_path ?? '')
   const i = p?.tool_input ?? {}
   return String(i.file_path ?? i.filePath ?? i.path ?? '')
 }

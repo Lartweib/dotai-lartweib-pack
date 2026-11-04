@@ -21,8 +21,9 @@
   //
   // Matchers name each harness's own tools: Claude Code "Bash|PowerShell", "Read", "Agent|Task"
   // (Task is the tool's former name); OpenCode "bash" and "^read$" (the plugin tests an
-  // unanchored, case-sensitive regex); agy "run_command" and "view_file" (agy 1.4.12 hooks docs;
-  // TODO(trial): agy's file-read tool name and its fields).
+  // unanchored, case-sensitive regex; OpenCode 2.0.30 names the shell tool `shell`, which the
+  // plugin aliases to `bash`); agy "run_command" and "read_file" (agy 1.4.12, real payloads,
+  // trial 2026-11-03; its hooks docs say view_file, which never fires).
   //
   // Quoting (PACK-FORMAT, HARNESS-NOTES): Claude Code (Git Bash) and OpenCode (Bun Shell) get the
   // path in double quotes; agy runs commands through `cmd /c`, where every `"` arrives as `\"`,
@@ -63,7 +64,7 @@
       ],
       "preToolUse": [
         { "matcher": "run_command", "command": "node ${DOTAI_TOOLS}/shell-guard.mjs antigravity", "timeout": 10 },
-        { "matcher": "view_file", "command": "node ${DOTAI_TOOLS}/read-guard.mjs antigravity", "timeout": 10 }
+        { "matcher": "read_file", "command": "node ${DOTAI_TOOLS}/read-guard.mjs antigravity", "timeout": 10 }
       ]
     }
   }

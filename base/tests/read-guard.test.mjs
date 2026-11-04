@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { decide, readRequest } from '../dotai/tools/read-guard.mjs'
+import { compilePatterns } from '../dotai/tools/hook-lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GUARD = join(HERE, '..', 'dotai', 'tools', 'read-guard.mjs')
@@ -29,6 +30,8 @@ test('the request shape of each harness gives the path and whether it is a range
   assert.deepEqual(readRequest({ tool_input: { file_path: 'a' } }), { path: 'a', partial: false })
   assert.deepEqual(readRequest({ tool_input: { file_path: 'a.pdf', pages: '1-3' } }), { path: 'a.pdf', partial: true })
   assert.deepEqual(readRequest({ tool_input: { filePath: 'b', limit: 20 } }), { path: 'b', partial: true })
+  assert.deepEqual(readRequest({ toolCall: { name: 'read_file', args: { Path: 'c' } } }), { path: 'c', partial: false })
+  assert.deepEqual(readRequest({ toolCall: { name: 'read_file', args: { Path: 'c', StartLine: 1, EndLine: 3 } } }), { path: 'c', partial: true })
   assert.deepEqual(readRequest({ toolCall: { name: 'view_file', args: { AbsolutePath: 'c' } } }), { path: 'c', partial: false })
   assert.deepEqual(readRequest({ toolCall: { name: 'view_file', args: { AbsolutePath: 'c', StartLine: 1, EndLine: 9 } } }), { path: 'c', partial: true })
   assert.deepEqual(readRequest({}), { path: '', partial: false })
@@ -107,6 +110,17 @@ test('a denied path is refused in every harness, whatever its size or range; .en
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('a home path the harness left unexpanded is resolved against the home, not the cwd', () => {
+  const home = join(tmpdir(), 'guard home')
+  const cwd = join(tmpdir(), 'guard project')
+  const match = compilePatterns(['~/.ssh/'], { home })
+  const opts = { cwd, root: cwd, home, denied: abs => match(abs, cwd) }
+  for (const path of ['~/.ssh/id_x', '%USERPROFILE%\\.ssh\\id_x', '$HOME/.ssh/id_x', '${HOME}/.ssh/id_x', '$env:USERPROFILE\\.ssh\\id_x']) {
+    assert.equal(decide({ path, partial: false }, opts)?.decision, 'deny', path)
+  }
+  assert.equal(decide({ path: '~/notes.txt', partial: false }, opts), null)
 })
 
 test('a bad threshold falls back to the default with a warning, and bad input never blocks', () => {

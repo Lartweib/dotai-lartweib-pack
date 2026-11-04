@@ -6,7 +6,8 @@
 // `rate_limits.five_hour|seven_day` (used_percentage, resets_at), agy `quota` with the pools
 // `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly` (used_percentage or remaining_fraction,
 // reset_in_seconds or reset_time). So each run writes its harness's snapshot and reads the other's:
-//   ~/.claude/rate_limits.json                    (fields kept from the old statusline)
+//   ~/.claude/rate_limits.json                    (fields kept from the old statusline; under
+//                                                 CLAUDE_CONFIG_DIR when set)
 //   ~/.gemini/antigravity-cli/rate_limits.json    (read by delegate, RUNTIME; now also with each
 //                                                  pool's reset as an absolute time, 0017)
 // A snapshot older than STALE_SEC shows `?` and its age (unknown counts as available, 0022).
@@ -225,7 +226,9 @@ async function main() {
   if (!isObject(d)) return
   const now = Math.floor(Date.now() / 1000)
   const home = homedir()
-  const ccFile = join(home, '.claude', 'rate_limits.json')
+  // Claude Code's config directory, the rule agent-guard uses: an isolated session
+  // (CLAUDE_CONFIG_DIR) keeps its own snapshot and never overwrites the default one.
+  const ccFile = join(process.env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'rate_limits.json')
   const agyFile = join(home, '.gemini', 'antigravity-cli', 'rate_limits.json')
   const harness = harnessArg() ?? (isObject(d.quota) ? 'antigravity' : 'claudecode')
   let cc

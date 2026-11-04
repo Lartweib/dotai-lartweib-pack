@@ -2,13 +2,17 @@
 //   1. Commands from past incidents ask the author: `git stash` (except `list` and `show`),
 //      `git reset --hard`, and killing processes by name (`taskkill /IM` or `/FI`,
 //      `Stop-Process -Name` or from the pipeline, `pkill`, `killall`). Killing by PID passes.
-//      Headless runs cannot answer, so there the command is refused; OpenCode cannot ask at all
-//      and gets a deny (hook-lib formatPreToolUse).
+//      Headless runs cannot answer, so there the command is refused; OpenCode cannot ask, and agy
+//      runs the command on ask when an allow rule or skip-permissions applies (agy 1.4.12, trial
+//      2026-11-04) while the hook cannot tell which mode is active, so both get a deny (hook-lib
+//      formatPreToolUse).
 //   2. A command that names a denied path is denied, with no prompt: interpreters, `cmd /c
 //      type`, uploads, archivers, and plain readers and copiers, in every harness. Claude Code's
 //      own Read deny was seen to stop only cat, head, rg and Get-Content (measurement 9), so its
 //      shell is checked like the others. A file read through `<` is checked whatever the command.
-//      A text filter: it stops accidental reads, not a script built to evade it.
+//      A static .NET call (`[IO.File]::ReadAllText('.env')`, `[System.IO.File]::Copy(...)`) is
+//      checked by its arguments whatever the type or method, so `[IO.File]::Exists('.env')` is
+//      denied too. A text filter: it stops accidental reads, not a script built to evade it.
 // The denied paths come from `deny-paths.*.txt` in ~/.dotai/tools/ and the project's
 // .dotai/tools/ (gitignore-style; hook-lib denyMatcher, where a project `!` line is ignored).
 // Keep deny-paths.base.txt in step with the secrets of base/.rulesync/permissions.jsonc
@@ -19,7 +23,7 @@ import { homedir } from 'node:os'
 import { isAbsolute, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { compilePatterns, denyMatcher, formatPreToolUse, harnessArg, parsePayload, readStdin, simpleCommands } from './hook-lib.mjs'
+import { compilePatterns, denyMatcher, expandHome, formatPreToolUse, harnessArg, parsePayload, readStdin, simpleCommands } from './hook-lib.mjs'
 
 const ASK = {
   stash: 'shell guard: `git stash` can hide or overwrite work (past incident). Prefer a WIP commit (`git commit -am wip`) or a new branch; approve only if you asked for the stash.',
@@ -79,14 +83,6 @@ function pieces(text) {
   return out.filter(p => p && !p.includes('://') && !/^-/.test(p) && !/^\d+$/.test(p))
 }
 
-function expandHome(p, home) {
-  let s = p
-  s = s.replace(/^~(?=$|[\\/])/, home)
-  s = s.replace(/^(\$HOME|\$\{HOME\}|\$env:USERPROFILE|\$env:HOME|%USERPROFILE%)(?=$|[\\/])/i, home)
-  if (process.platform === 'win32') s = s.replace(/^\/\/?([a-z])\//i, '$1:/')
-  return s
-}
-
 function deniedPiece(tokens, { cwd, root, home, match }) {
   for (const t of tokens) {
     for (const raw of new Set([...pieces(t.v), ...pieces(t.u)])) {
@@ -99,21 +95,46 @@ function deniedPiece(tokens, { cwd, root, home, match }) {
   return null
 }
 
+// The argument text of every static .NET call (`[Type]::Method(...)`) in the raw command, as
+// words for deniedPiece. The tokenizer splits at the parentheses, so the raw text is scanned
+// here; quotes are honored when finding the closing parenthesis.
+function staticCallArgs(command) {
+  const out = []
+  const s = String(command ?? '')
+  for (const m of s.matchAll(/\[[\w.]+\]::\w+\s*\(/g)) {
+    let depth = 1
+    let quote = null
+    let j = m.index + m[0].length
+    for (; j < s.length && depth; j++) {
+      const c = s[j]
+      if (quote) {
+        if (c === quote) quote = null
+      } else if (c === "'" || c === '"') quote = c
+      else if (c === '(') depth++
+      else if (c === ')') depth--
+    }
+    const text = s.slice(m.index + m[0].length, depth ? j : j - 1)
+    out.push({ v: text, u: text })
+  }
+  return out
+}
+
 // harness: 'claudecode' | 'opencode' | 'antigravity' (every harness gets the same checks; the
 // argument stays for the output format). Returns null or { decision, reason }.
 export function decide(command, { harness = 'claudecode', cwd = process.cwd(), root = null, home = homedir(), denyPatterns = [] } = {}) {
   const cmds = simpleCommands(command)
   if (!cmds.length) return null
   const match = compilePatterns(denyPatterns, { home })
+  const deny = hit => ({
+    decision: 'deny',
+    reason: `shell guard: this command reads a denied path (${hit.piece} matches ${hit.pattern}). Agents do not read secrets: do not retry with another reader or tool; if the user needs it, they run it themselves.`,
+  })
+  const dotnet = deniedPiece(staticCallArgs(command), { cwd, root, home, match })
+  if (dotnet) return deny(dotnet)
   for (const cmd of cmds) {
     const tokens = [...(CHECKED.has(cmd.name) ? cmd.args : []), ...(cmd.redirs ?? [])]
     const hit = deniedPiece(tokens, { cwd, root, home, match })
-    if (hit) {
-      return {
-        decision: 'deny',
-        reason: `shell guard: this command reads a denied path (${hit.piece} matches ${hit.pattern}). Agents do not read secrets: do not retry with another reader or tool; if the user needs it, they run it themselves.`,
-      }
-    }
+    if (hit) return deny(hit)
   }
   for (const cmd of cmds) {
     const reason = askReason(cmd)

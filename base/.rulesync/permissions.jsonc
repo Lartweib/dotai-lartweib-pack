@@ -9,11 +9,16 @@
   //                directory, measurement 9). There is no `!` and deny wins over allow, so
   //                `.env.*` is spelled out per file, which keeps `.env.example` readable.
   //   OpenCode     wildcards over the path, last matching rule wins; this is OpenCode's own
-  //                default read block plus the secrets. TODO(trial): whether `~/` is expanded.
+  //                default read block plus the secrets. `~/` is expanded (OpenCode 2.0.30, trial
+  //                2026-11-04); v2 reads rulesync's `permissions` list as its native shape.
   //   agy          plain paths only, absolute or relative to the workspace; a glob matches
   //                nothing, so `.env.*` is spelled out per file as for Claude Code, and the other
-  //                glob entries are covered by the shell and read guards alone.
-  //                TODO(trial): rulesync warns that agy may not expand `~/`.
+  //                glob entries are covered by the shell and read guards alone. A relative path
+  //                matches only at the workspace root: `.env` does not deny `sub/.env`, and
+  //                `**/.env` denies nothing (agy 1.4.12, trial 2026-11-04). For nested secrets
+  //                read-guard is the only control on agy.
+  //                agy does not expand `~/` (agy 1.4.12, trial 2026-11-03): those entries deny
+  //                nothing until the engine offers a home placeholder; read-guard covers them.
   "permission": {},
   "claudecode": {
     "permission": {

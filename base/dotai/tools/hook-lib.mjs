@@ -100,11 +100,14 @@ export function parsePayload(raw) {
 
 // Which shell will run the command: 'posix', 'powershell' or 'windows' (cmd, or PowerShell
 // behind a tool that does not say so). Claude Code's Bash tool runs Git Bash on Windows; for the
-// other harnesses on Windows the environment decides (TODO(trial): OpenCode's and agy's shell).
+// other harnesses on Windows the environment decides (TODO(trial): OpenCode's shell); agy uses PowerShell.
 export function shellKind(parsed, env = process.env, platform = process.platform) {
   if (/^powershell$/i.test(parsed.tool ?? '')) return 'powershell'
   if (platform !== 'win32') return 'posix'
   if (parsed.harness === 'claudecode') return 'posix'
+  // agy 1.4.12 runs run_command in PowerShell on Windows even when started from Git Bash
+  // (MSYSTEM set): `echo $env:OS %OS%` printed Windows_NT and a literal %OS% (trial, 2026-11-03).
+  if (parsed.harness === 'antigravity') return 'powershell'
   if (env.MSYSTEM || /(^|[\\/])(ba|z|da)?sh(\.exe)?$/i.test(env.SHELL ?? '')) return 'posix'
   return 'windows'
 }
@@ -112,11 +115,21 @@ export function shellKind(parsed, env = process.env, platform = process.platform
 const OPENCODE_ASK =
   "OpenCode cannot ask, so it is refused. If the user asked for this, they can run it themselves, or allow it in OpenCode's permission config."
 
+const AGY_ASK =
+  "agy runs the command on ask when an allow rule or skip-permissions applies, and the hook cannot tell which mode is active, so it is refused. If the user asked for this, they can run it themselves."
+
 // decision: null (no opinion), 'ask' or 'deny'. Returns the text to print on stdout; no
 // decision prints nothing in every harness, so each keeps its own permission mode.
 export function formatPreToolUse(harness, decision, reason) {
   if (!decision) return ''
-  if (harness === 'antigravity') return JSON.stringify({ decision, reason })
+  // agy 1.4.12 prompts on {"decision":"ask"} in its default permission mode, but runs the
+  // command when an allow rule or skip-permissions applies (trial 2026-11-04), and the payload
+  // has no permission-mode field, so the hook cannot tell which mode is active: ask becomes deny.
+  if (harness === 'antigravity') {
+    return decision === 'ask'
+      ? JSON.stringify({ decision: 'deny', reason: `${reason} ${AGY_ASK}` })
+      : JSON.stringify({ decision, reason })
+  }
   // OpenCode's rulesync plugin only understands deny; an ask there would run unasked.
   const rewritten = harness === 'opencode' && decision === 'ask'
   return JSON.stringify({
@@ -676,6 +689,18 @@ function globToRegExp(glob) {
     else re += reEscape(c)
   }
   return re
+}
+
+// Expands a leading home reference the harness or shell left as text: `~`, `$HOME`, `${HOME}`,
+// `$env:USERPROFILE`, `$env:HOME`, `%USERPROFILE%`. On Windows, a Git Bash drive path (`/c/x`)
+// becomes `c:/x`. Shared by the read and shell guards, so a path like `~/.ssh/id_x` is checked
+// against the home and not resolved under the cwd.
+export function expandHome(p, home = homedir()) {
+  let s = String(p)
+  s = s.replace(/^~(?=$|[\\/])/, home)
+  s = s.replace(/^(\$HOME|\$\{HOME\}|\$env:USERPROFILE|\$env:HOME|%USERPROFILE%)(?=$|[\\/])/i, home)
+  if (process.platform === 'win32') s = s.replace(/^\/\/?([a-z])\//i, '$1:/')
+  return s
 }
 
 // Compiles gitignore-style patterns into match(absPath, root) -> { matched, pattern }.

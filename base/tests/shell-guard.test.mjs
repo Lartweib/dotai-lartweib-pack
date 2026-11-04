@@ -102,6 +102,23 @@ test('plain readers and copiers naming a denied path are denied in every harness
   assert.match(run('cat .env').reason, /do not retry with another reader/i)
 })
 
+test('a static .NET call naming a denied path is denied; a harmless one passes', () => {
+  for (const cmd of [
+    "[IO.File]::ReadAllText('cc-secret/.env')",
+    '[System.IO.File]::ReadAllBytes(".env")',
+    "[IO.File]::ReadAllLines('.env.local')",
+    "[IO.File]::OpenRead('id_rsa')",
+    "[IO.File]::Copy('.env', 'x.txt')",
+    "$t = [IO.File]::ReadAllText('.env')",
+    "Write-Output ([IO.File]::ReadAllText('.env'))",
+  ]) {
+    for (const h of ['claudecode', 'opencode', 'antigravity']) assert.equal(verdict(cmd, h), 'deny', `${h}: ${cmd}`)
+  }
+  for (const cmd of ["[IO.File]::Exists('README.md')", "[IO.File]::ReadAllText('.env.example')", '[Math]::Max(1, 2)']) {
+    assert.equal(verdict(cmd, 'claudecode'), null, cmd)
+  }
+})
+
 test('a file read through input redirection is checked, whatever the command', () => {
   for (const cmd of ['base64 < .env', 'cat < .env', 'wc -l <secrets/.env.local', 'cat 0< .env', 'bash -c "cat" < .env', 'while read l; do echo $l; done < .env']) {
     assert.equal(verdict(cmd, 'claudecode'), 'deny', cmd)

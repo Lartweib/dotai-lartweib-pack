@@ -86,6 +86,24 @@ const run = (args, input, h, extra = {}) =>
     env: { ...process.env, USERPROFILE: h, HOME: h, NO_COLOR: '1', ...extra },
   })
 
+test('the Claude Code snapshot lives in CLAUDE_CONFIG_DIR when set, for both harnesses', () => {
+  const h = home()
+  try {
+    const config = join(h, 'isolated claude')
+    mkdirSync(config, { recursive: true })
+    const now = Math.floor(Date.now() / 1000)
+    const input = { ...ccInput, rate_limits: { five_hour: { used_percentage: 63, resets_at: now + H }, seven_day: { used_percentage: 9, resets_at: now + D } } }
+    const cc = run(['claudecode'], input, h, { CLAUDE_CONFIG_DIR: config })
+    assert.equal(cc.status, 0, cc.stderr)
+    assert.equal(JSON.parse(readFileSync(join(config, 'rate_limits.json'), 'utf8')).five_hour_pct, 63)
+    assert.deepEqual(readdirSync(join(h, '.claude')), [], 'the default snapshot is left alone')
+    const agy = run(['antigravity'], agyInput, h, { CLAUDE_CONFIG_DIR: config })
+    assert.match(agy.stdout, /^CC\s+5h 63%/, 'agy reads the snapshot from the same directory')
+  } finally {
+    rmSync(h, { recursive: true, force: true })
+  }
+})
+
 test('Claude Code writes its snapshot and reads agy, agy writes its own with absolute resets', () => {
   const h = home()
   try {

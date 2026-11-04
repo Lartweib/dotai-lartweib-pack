@@ -12,12 +12,14 @@
 // Code's Read refuses files over 25k tokens anyway).
 // Never blocks on its own failure. Entry point: `node read-guard.mjs <harness>`.
 import { statSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { isAbsolute, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import {
   compilePatterns,
   denyMatcher,
+  expandHome,
   formatPreToolUse,
   isObject,
   harnessArg,
@@ -35,9 +37,9 @@ export const DEFAULTS = { maxKb: 64 }
 
 const given = v => v !== undefined && v !== null && v !== ''
 
-// Claude Code Read: { file_path, offset, limit, pages }. OpenCode read: { filePath, offset,
-// limit }. agy view_file: { AbsolutePath, StartLine, EndLine } (TODO(trial): agy's read tool
-// name and fields, from its hooks docs only).
+// Claude Code Read: { file_path, offset, limit, pages }. OpenCode read: { path, offset, limit }
+// in 2.0.30 (trial 2026-11-04), { filePath, ... } before. agy read_file: { Path, StartLine, EndLine } (agy 1.4.12, seen in real hook payloads;
+// the hooks docs said view_file with AbsolutePath, which is kept as a fallback).
 export function readRequest(payload) {
   const p = isObject(payload) ? payload : {}
   const a = isObject(p.toolCall) ? (isObject(p.toolCall.args) ? p.toolCall.args : {}) : isObject(p.tool_input) ? p.tool_input : {}
@@ -46,10 +48,12 @@ export function readRequest(payload) {
   return { path, partial }
 }
 
-// `denied`: match(absPath) -> { matched, pattern } for the secrets list, or null.
-export function decide(request, { cwd = process.cwd(), root = null, patterns = [], maxKb = DEFAULTS.maxKb, denied = null } = {}) {
+// `denied`: match(absPath) -> { matched, pattern } for the secrets list, or null. A home
+// reference left unexpanded (`~/.ssh/x`, `%USERPROFILE%\.ssh\x`) is resolved against `home`.
+export function decide(request, { cwd = process.cwd(), root = null, home = homedir(), patterns = [], maxKb = DEFAULTS.maxKb, denied = null } = {}) {
   if (!request.path) return null
-  const abs = isAbsolute(request.path) ? request.path : resolve(cwd, request.path)
+  const path = expandHome(request.path, home)
+  const abs = isAbsolute(path) ? path : resolve(cwd, path)
   const secret = denied?.(abs)
   if (secret?.matched) {
     return {

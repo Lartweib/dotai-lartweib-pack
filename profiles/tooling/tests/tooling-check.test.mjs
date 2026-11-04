@@ -18,6 +18,7 @@ test('the edited file path is read from each harness payload', () => {
   assert.equal(filePathOf({ tool_input: { file_path: 'a.go' } }), 'a.go')
   assert.equal(filePathOf({ tool_input: { filePath: 'b.py' } }), 'b.py')
   assert.equal(filePathOf({ toolCall: { args: { TargetFile: 'c.ts' } } }), 'c.ts')
+  assert.equal(filePathOf({ toolCall: { name: 'write_file', args: { Path: 'd.ts', Content: 'x' } } }), 'd.ts') // agy 1.4.12, seen at runtime
   assert.equal(filePathOf({}), '')
   assert.equal(filePathOf(null), '')
 })
