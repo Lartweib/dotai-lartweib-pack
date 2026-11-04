@@ -43,44 +43,37 @@ function parseJson(text) {
 
 const strings = v => (typeof v === 'string' ? [v] : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : [])
 
-// The handle of `terminal create --json`. TODO(trial): the result shape is not in Orca's schema;
-// `result.terminal.handle` is assumed, any `handle` field or `term_*` string is accepted.
-function findHandle(j) {
-  if (!j || typeof j !== 'object') return null
-  if (typeof j.handle === 'string') return j.handle
-  for (const v of Object.values(j)) {
-    if (typeof v === 'string' && /^term_/.test(v)) return v
-    const h = typeof v === 'object' ? findHandle(v) : null
-    if (h) return h
-  }
-  return null
-}
+// The handle of `terminal create --json`: `{ ok: true, result: { terminal: { handle: "term_<uuid>",
+// tabId, title, ... } } }` (observed, Orca 1.4.247).
+const createdHandle = j => (j?.ok === true && typeof j.result?.terminal?.handle === 'string' ? j.result.terminal.handle : null)
 
-// The handle of the terminal in `terminal list --json` whose own fields mention `marker` (the
-// job id in its title). TODO(trial): the list shape; any object holding the marker is accepted.
-function findTerminal(j, marker) {
-  if (!j || typeof j !== 'object') return null
-  if (Object.values(j).some(v => typeof v === 'string' && v.includes(marker))) return findHandle(j)
-  for (const v of Object.values(j)) {
-    const h = typeof v === 'object' ? findTerminal(v, marker) : null
-    if (h) return h
-  }
-  return null
-}
+// The terminal in `terminal list --json` whose title holds `marker` (the job id). The list is
+// `result.terminals[]` of `{ handle, title, preview, ... }` across every workspace (observed, Orca
+// 1.4.247). Only the title is matched: `preview` is a terminal's recent output, so another tab
+// (the caller's own session, say) can show the marker too. A cmd.exe terminal replaces the
+// `--title` with its own once it runs a command, hence the `title` in terminalLine.
+const findTerminal = (listed, marker) =>
+  listed?.terminals.find(t => typeof t?.title === 'string' && t.title.includes(marker) && typeof t.handle === 'string')?.handle ?? null
 
+// `{ ok: true, result: { runtime: { state: "ready", reachable: true, appVersion, ... } } }`
+// (observed, Orca 1.4.247).
 async function orcaReachable(orca, spec) {
   const r = await runCli(orca, ['status', '--json'], { cwd: spec.cwd, env: spec.env, timeoutMs: 15000 })
   const j = parseJson(r.stdout)
   return r.code === 0 && j?.ok === true && j.result?.runtime?.reachable === true
 }
 
-// The open terminals, or null when Orca does not answer (then nothing is concluded).
+// The list's `result` (`terminals`, `truncated`, ...), or null when Orca does not answer with that
+// shape (then nothing is concluded).
 async function listTerminals(orca, spec) {
   const r = await runCli(orca, ['terminal', 'list', '--json'], { cwd: spec.cwd, env: spec.env, timeoutMs: 15000 })
   const j = parseJson(r.stdout)
-  return r.code === 0 && j && j.ok !== false ? j : null
+  return r.code === 0 && j?.ok === true && Array.isArray(j.result?.terminals) ? j.result : null
 }
 
+// `{ ok: true, result: { close: { handle, tabId, closeMode: "tab" } } }`; a terminal whose line
+// already ran `exit` is gone, and close answers `terminal_handle_stale` (exit 1), which is ignored
+// (observed, Orca 1.4.247).
 const closeTerminal = (orca, handle, spec) =>
   runCli(orca, ['terminal', 'close', '--terminal', handle, '--tab', '--json'], { cwd: spec.cwd, env: spec.env, timeoutMs: 30000 })
 
@@ -90,8 +83,11 @@ class Unquotable extends Error {}
 // the login shell elsewhere. It enters the working directory first (an Orca terminal opens in
 // the workspace's), and touches the done marker whatever happens, which ends the wait; the JSON
 // goes to out.json, since the exit code in cmd is not reliable and the real status is in the
-// JSON (0022).
-function terminalLine(spec, { out, err, done }) {
+// JSON (0022). In cmd.exe it also sets the tab title again, since cmd replaces the `--title`
+// with its own (`C:\windows\SYSTEM32\cmd.exe - <command>`) while a command runs; after `title`,
+// Orca lists `<title> [<id>]  - <command>` (observed, Orca 1.4.247). The `exit` at the end closes
+// the tab: the terminal leaves `terminal list` by itself (observed, cmd.exe, Orca 1.4.247).
+function terminalLine(spec, { out, err, done }, label) {
   const parts = ['agy', ...spec.args]
   const env = { DOTAI_DELEGATE_CALLER: spec.env.DOTAI_DELEGATE_CALLER, DOTAI_DELEGATE_PARENT: spec.env.DOTAI_DELEGATE_PARENT }
   if (WIN) {
@@ -99,9 +95,10 @@ function terminalLine(spec, { out, err, done }) {
       if (/["%\r\n]/.test(a)) throw new Unquotable(`cannot type ${JSON.stringify(a)} into cmd.exe`)
       return `"${a}"`
     }
+    const title = `title ${label.replace(/[^\w .,:[\]-]/g, ' ')}`
     const sets = Object.entries(env).map(([k, v]) => `set "${k}=${v}"`)
     const run = `${parts.map((a, i) => (i ? q(a) : a)).join(' ')} > ${q(out)} 2> ${q(err)}`
-    return `cd /d ${q(spec.cwd)} 2> ${q(err)} && (${[...sets, run].join(' & ')}) & type nul > ${q(done)} & exit`
+    return `cd /d ${q(spec.cwd)} 2> ${q(err)} && (${[title, ...sets, run].join(' & ')}) & type nul > ${q(done)} & exit`
   }
   const q = a => `'${String(a).replace(/'/g, `'\\''`)}'`
   const sets = Object.entries(env).map(([k, v]) => `${k}=${q(v)}`)
@@ -122,15 +119,16 @@ async function orcaLaunch(spec) {
   const dir = spec.attemptDir ?? spec.jobDir
   const files = { out: join(dir, 'out.json'), err: join(dir, 'err.txt'), done: join(dir, 'done') }
   for (const f of Object.values(files)) rmSync(f, { force: true })
+  const marker = `[${spec.id}]`
+  const label = `${spec.title} ${marker}`
   let typed
   try {
-    typed = terminalLine(spec, files)
+    typed = terminalLine(spec, files, label)
   } catch (e) {
     if (e instanceof Unquotable) return headless('orca-unquotable')
     throw e
   }
-  const marker = `[${spec.id}]`
-  const args = ['terminal', 'create', '--title', `${spec.title} ${marker}`, '--command', typed]
+  const args = ['terminal', 'create', '--title', label, '--command', typed]
   if (WIN) args.push('--shell', 'cmd.exe')
   args.push('--json')
   const created = await runCli(orca, args, { cwd: spec.cwd, env: spec.env, timeoutMs: createTimeoutMs(spec.env) })
@@ -139,15 +137,16 @@ async function orcaLaunch(spec) {
     if (stray) await closeTerminal(orca, stray, spec)
     return headless(created.timedOut ? 'orca-create-timeout' : 'orca-create-error')
   }
-  let handle = findHandle(parseJson(created.stdout)) ?? findTerminal(await listTerminals(orca, spec), marker)
+  let handle = createdHandle(parseJson(created.stdout)) ?? findTerminal(await listTerminals(orca, spec), marker)
   const every = probeMs(spec.env)
   const deadline = Date.now() + spec.timeoutMs
   let nextProbe = Date.now() + every
   let lost = false
-  // TODO(trial): the list shape is unverified, so the probe is conservative: the terminal counts
-  // as closed only when the list answers, parses, and no string field anywhere names the handle or
-  // the job marker, on two probes in a row. A failed or unparsed list concludes nothing.
-  const mentioned = listed => strings(listed).some(s => s.includes(handle) || s.includes(marker))
+  // The terminal counts as closed when a complete list (not `truncated`) has no entry with its
+  // handle, on two probes in a row; a live terminal is always listed (observed, Orca 1.4.247).
+  // Other tabs' fields are never read (a `preview` can quote the handle). A failed, unparsed or
+  // truncated list concludes nothing.
+  const listedHere = listed => listed.terminals.some(t => t?.handle === handle)
   let misses = 0
   try {
     while (!existsSync(files.done) && Date.now() < deadline) {
@@ -155,8 +154,8 @@ async function orcaLaunch(spec) {
       if (!handle || Date.now() < nextProbe || existsSync(files.done)) continue
       nextProbe = Date.now() + every
       const listed = await listTerminals(orca, spec)
-      if (!listed) continue
-      misses = mentioned(listed) ? 0 : misses + 1
+      if (!listed || listed.truncated === true) continue
+      misses = listedHere(listed) ? 0 : misses + 1
       if (misses >= 2 && !existsSync(files.done)) {
         lost = true
         break
@@ -179,7 +178,10 @@ async function orcaLaunch(spec) {
 const words = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 // After worker-start, the real model from the worker's own output, because Orca's
 // launch.effective repeats what was asked even when agy ignored it (0022, orchestration test).
-// TODO(trial): agy's banner text; "Gemini 3.8 Flash (Low)" is matched as words.
+// The model is matched as words. agy's banner prints "Gemini 3.8 Flash (Low)" on its own line
+// (agy 1.4.12, trial 2026-11-04), but the pack statusline shows "3.8 Flash (Low)", so a leading
+// "gemini" is optional. A fresh agy dir or an untrusted folder shows onboarding or a trust prompt
+// before the banner, so the worker blocks there and the verdict is UNCONFIRMED.
 async function confirm(a, ctx) {
   const { dispatch, model } = a.flags
   if (!dispatch || !model) {
@@ -195,7 +197,8 @@ async function confirm(a, ctx) {
   const text = words(strings(parseJson(r.stdout) ?? r.stdout).join(' '))
   const want = words(model)
   let verdict = 'UNCONFIRMED'
-  if (text && ` ${text} `.includes(` ${want} `)) verdict = 'CONFIRMED'
+  const bare = want.replace(/^gemini /, '')
+  if (text && (` ${text} `.includes(` ${want} `) || ` ${text} `.includes(` ${bare} `))) verdict = 'CONFIRMED'
   else if (/\b(gemini|claude|gpt)\b/.test(text)) verdict = 'MISMATCH'
   appendLog(ctx.checks, { event: 'confirm', ts: Date.now(), dispatch, model, verdict, harness: 'agy' }, ctx.cfg.logMax)
   const hint = verdict === 'CONFIRMED' ? '' : ': stop that worker (worker-stop) and report it; do not trust launch.effective'

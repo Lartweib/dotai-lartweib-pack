@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -126,6 +126,9 @@ test('confirm checks the actual model from worker-read, since launch.effective i
     const ok = runTool(TOOL, ['confirm', '--dispatch', 'd1', '--model', 'gemini-3.8-flash-low'], sb, { FAKE_ORCA_BANNER: 'Antigravity CLI · Gemini 3.8 Flash (Low) · ready' })
     assert.equal(ok.code, 0, ok.out + ok.err)
     assert.match(ok.out, /CONFIRMED/)
+    // The pack statusline drops "Gemini".
+    const line = runTool(TOOL, ['confirm', '--dispatch', 'd1', '--model', 'gemini-3.8-flash-low'], sb, { FAKE_ORCA_BANNER: 'agy 3.8 Flash (Low) · quota 80%' })
+    assert.equal(line.code, 0, line.out + line.err)
     const bad = runTool(TOOL, ['confirm', '--dispatch', 'd1', '--model', 'claude-sonnet-4-6'], sb, { FAKE_ORCA_BANNER: 'Antigravity CLI · Gemini 3.8 Flash (Medium)' })
     assert.equal(bad.code, 1)
     assert.match(bad.out, /MISMATCH/)
@@ -273,15 +276,13 @@ test('a working directory cmd.exe cannot take runs headless instead of failing',
   }
 })
 
-// The liveness probe is conservative (the list shape is unverified): a terminal counts as closed
-// only when `terminal list` answers, parses, and no string field anywhere names the handle or the
-// job marker, on two probes in a row. Anything else keeps waiting until the done marker.
+// The liveness probe: a terminal counts as closed only when `terminal list` answers with
+// `result.terminals[]` and no entry has its handle, on two probes in a row. Anything else keeps
+// waiting until the done marker.
 const lists = sb => sb.calls().filter(c => c.name === 'orca' && c.argv[1] === 'list').length
 const slow = { ...CC, FAKE_AGY: 'sleep', FAKE_AGY_SLEEP_MS: '2500', DOTAI_ORCA_PROBE_MS: '200' }
 
 for (const [mode, why] of [
-  ['list-alt', 'the handle sits inside another field'],
-  ['list-title-only', 'only the title (with the job marker) is listed'],
   ['list-error', 'terminal list fails'],
   ['flicker', 'the terminal is missing from one probe but not the next'],
 ]) {
@@ -332,6 +333,73 @@ test('a terminal that cannot be found at all gets one line asking the user to cl
     const hint = r.err.trim().split(/\r?\n/)
     assert.equal(hint.length, 1, r.err)
     assert.ok(hint[0].includes(`[${id}]`) && /close the Orca tab/i.test(hint[0]), hint[0])
+  } finally {
+    sb.cleanup()
+  }
+})
+
+// Against the JSON recorded from Orca 1.4.247 (fixtures/orca-1.4.247, fake-orca-recorded.mjs).
+const RECORDED = join(HERE, 'fake-orca-recorded.mjs')
+const FOREIGN = JSON.parse(readFileSync(join(HERE, 'fixtures', 'orca-1.4.247', 'list-running.json'), 'utf8')).result.terminals[0].handle
+
+function recordedSandbox() {
+  const sb = sandbox(['agy'])
+  if (process.platform === 'win32') writeFileSync(join(sb.bin, 'orca.cmd'), `@node "${RECORDED}" %*\r\n`)
+  else {
+    writeFileSync(join(sb.bin, 'orca'), `#!/bin/sh\nexec node '${RECORDED}' "$@"\n`)
+    chmodSync(join(sb.bin, 'orca'), 0o755)
+  }
+  return sb
+}
+
+test('the recorded create, list and close shapes: the run uses the create handle and closes only its own tab', () => {
+  const sb = recordedSandbox()
+  try {
+    const r = runTool(TOOL, base(spec(sb)), sb, { ...slow, FAKE_ORCA: 'foreign-mentions' })
+    assert.equal(r.code, 0, r.out + r.err)
+    assert.match(r.out, /OK agy .*via=orca:term_recorded1 /)
+    assert.ok(lists(sb) >= 3, `probed ${lists(sb)} times`)
+    assert.deepEqual(closedHandles(sb), ['term_recorded1'])
+    assert.equal(r.err, '')
+    const line = created(sb)[0].argv[created(sb)[0].argv.indexOf('--command') + 1]
+    if (process.platform === 'win32') assert.match(line, /&& \(title orca job \[\d{8}-\d{6}-\w+\] & set /, 'cmd.exe gets the title back')
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('another tab whose preview quotes the handle does not keep a vanished terminal alive', () => {
+  const sb = recordedSandbox()
+  try {
+    const r = runTool(TOOL, base(spec(sb)), sb, { ...CC, FAKE_ORCA: 'vanish foreign-mentions', DOTAI_ORCA_PROBE_MS: '200' })
+    assert.equal(r.code, 1, r.out + r.err)
+    assert.match(r.out, /FAIL .*terminal closed/)
+    assert.equal(lists(sb), 2)
+    assert.ok(!closedHandles(sb).includes(FOREIGN))
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('after a create timeout the stray tab is found by its title, never by another tab quoting the job id', () => {
+  const sb = recordedSandbox()
+  try {
+    const r = runTool(TOOL, base(spec(sb)), sb, { ...CC, FAKE_ORCA: 'create-hang foreign-mentions', DOTAI_ORCA_CREATE_TIMEOUT_MS: '1500' })
+    assert.equal(r.code, 0, r.out + r.err)
+    assert.match(r.out, /OK agy .*via=headless:orca-create-timeout/)
+    assert.deepEqual(closedHandles(sb), ['term_recorded1'])
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('a truncated list proves nothing: the run keeps waiting for its done marker', () => {
+  const sb = recordedSandbox()
+  try {
+    const r = runTool(TOOL, base(spec(sb)), sb, { ...slow, FAKE_ORCA: 'truncated' })
+    assert.equal(r.code, 0, r.out + r.err)
+    assert.match(r.out, /OK agy .*via=orca:term_recorded1 /)
+    assert.ok(lists(sb) >= 3, `probed ${lists(sb)} times`)
   } finally {
     sb.cleanup()
   }

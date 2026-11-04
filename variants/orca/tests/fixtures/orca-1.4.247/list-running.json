@@ -1,0 +1,57 @@
+{
+  "id": "cc23c855-ed5c-4a01-8966-49fca79e5213",
+  "ok": true,
+  "result": {
+    "terminals": [
+      {
+        "handle": "term_aef8f924-7490-4175-adec-fe9bd8893189",
+        "ptyId": "75b16845-966b-47be-86e3-e9595683c903::C:\\work\\project@@bdb30c74",
+        "incarnationId": "955edbcb-cb9b-4def-878a-894554345dec",
+        "orphaned": false,
+        "worktreeId": "75b16845-966b-47be-86e3-e9595683c903::C:\\work\\project",
+        "worktreePath": "C:\\work\\project",
+        "branch": "refs/heads/main",
+        "tabId": "4d96e019-fea4-4367-98fe-ff959253b282",
+        "leafId": "fc100659-0a15-4029-9b01-a329f5325fd7",
+        "title": "Some other session",
+        "connected": true,
+        "writable": true,
+        "lastOutputAt": 1793741741973,
+        "preview": "PS C:\\work\\project> claude -c",
+        "executionHostId": "local",
+        "agentIdentity": "claude"
+      },
+      {
+        "handle": "term_beb0ab51-cf3f-429c-b118-30008b7163b3",
+        "ptyId": "75b16845-966b-47be-86e3-e9595683c903::C:\\work\\project@@c782575f",
+        "incarnationId": "1f012db1-1937-4ffa-9c37-1c0bb423b290",
+        "orphaned": false,
+        "worktreeId": "75b16845-966b-47be-86e3-e9595683c903::C:\\work\\project",
+        "worktreePath": "C:\\work\\project",
+        "branch": "refs/heads/main",
+        "tabId": "a21e7909-4528-4071-8163-104ee5be9371",
+        "leafId": "36e9da2b-952a-4506-9215-24cee853518d",
+        "title": "C:\\windows\\SYSTEM32\\cmd.exe - ping  -n 21 127.0.0.1",
+        "connected": true,
+        "writable": true,
+        "lastOutputAt": 1793741756483,
+        "preview": "dotai-trial-8831965",
+        "executionHostId": "local"
+      }
+    ],
+    "hostScope": {
+      "hostIds": [
+        "local"
+      ],
+      "omittedHostIds": []
+    },
+    "topologyRevisions": {
+      "75b16845-966b-47be-86e3-e9595683c903::C:\\work\\project": 3
+    },
+    "totalCount": 2,
+    "truncated": false
+  },
+  "_meta": {
+    "runtimeId": "e272bd86-2315-482a-8ff8-29d2cf49d645"
+  }
+}

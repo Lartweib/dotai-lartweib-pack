@@ -131,7 +131,7 @@ async function orca() {
     return
   }
   if (cmd === 'terminal list') {
-    // TODO(trial) in the backend: the real list shape; any object holding the handle is accepted.
+    // Orca 1.4.247 shape: result.terminals[], each with handle and title (orca/tests/fixtures).
     const closed = (env.FAKE_LOG ? readFileSync(env.FAKE_LOG, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : [])
       .filter(c => c.name === 'orca' && c.argv[1] === 'close')
       .map(c => c.argv[c.argv.indexOf('--terminal') + 1])
@@ -144,9 +144,6 @@ async function orca() {
     const n = readFileSync(env.FAKE_LOG, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(c => c.name === 'orca' && c.argv[1] === 'list').length
     const gone = mode === 'vanish' || mode === 'no-handle-never' || (mode === 'flicker' && n % 2 === 1) || (mode === 'no-handle-late' && n === 1)
     let live = gone ? [] : created().filter(t => !closed.includes(t.handle))
-    // Other list shapes: the handle inside another field, or only the title (with the job marker).
-    if (mode === 'list-alt') live = live.map(t => ({ pane: { ref: `pane:${t.handle}:0` } }))
-    if (mode === 'list-title-only') live = live.map((t, i) => ({ id: `p${i}`, label: t.title }))
     process.stdout.write(JSON.stringify({ ok: true, result: { terminals: live } }))
     return
   }

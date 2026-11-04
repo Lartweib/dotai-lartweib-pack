@@ -1,0 +1,22 @@
+{
+  "id": "ec2624a0-5359-4642-93b9-8691898bc6c4",
+  "ok": true,
+  "result": {
+    "terminal": {
+      "processId": 35696,
+      "handle": "term_beb0ab51-cf3f-429c-b118-30008b7163b3",
+      "tabId": "a21e7909-4528-4071-8163-104ee5be9371",
+      "paneKey": "a21e7909-4528-4071-8163-104ee5be9371:36e9da2b-952a-4506-9215-24cee853518d",
+      "ptyId": "75b16845-966b-47be-86e3-e9595683c903::C:\\work\\project@@c782575f",
+      "worktreeId": "75b16845-966b-47be-86e3-e9595683c903::C:\\work\\project",
+      "title": "dotai trial [trial-8831965]",
+      "executionHostId": "local",
+      "incarnationId": "1f012db1-1937-4ffa-9c37-1c0bb423b290",
+      "hostPlatform": "win32",
+      "surface": "visible"
+    }
+  },
+  "_meta": {
+    "runtimeId": "e272bd86-2315-482a-8ff8-29d2cf49d645"
+  }
+}
