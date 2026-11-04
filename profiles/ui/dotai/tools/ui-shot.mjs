@@ -8,7 +8,8 @@
 // errors only, no HTTP status), with `fallback` saying why.
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -67,14 +68,18 @@ export async function capture(o, chromium) {
 }
 
 // Same result shape through agent-browser's CLI. run(args) resolves to its --json reply,
-// { success, data, error }. One session per run, so the user's own sessions are untouched.
-export async function captureWithAgentBrowser(o, run) {
+// { success, data, error }. One session per run, so the user's own sessions are untouched;
+// `close` leaves `~/.agent-browser/<session>.target` behind (0.41.2), so it is removed too.
+export async function captureWithAgentBrowser(o, run, { home = homedir() } = {}) {
   mkdirSync(o.out, { recursive: true })
   const session = ['--json', '--session', `ui-shot-${process.pid}`]
   const call = (...args) => run([...session, ...args])
   const results = []
   let pageSeen = 0
   try {
+    // agent-browser follows the OS color scheme; Playwright defaults to light. Pin light so
+    // both engines render the same page.
+    await call('set', 'media', 'light')
     for (const vp of o.viewports) {
       await call('set', 'viewport', String(vp.width), String(vp.height))
       const opened = await call('open', o.url)
@@ -92,7 +97,8 @@ export async function captureWithAgentBrowser(o, run) {
       // shorter list means the session was reset).
       const page = (await call('errors'))?.data?.errors ?? []
       if (page.length < pageSeen) pageSeen = 0
-      for (const e of page.slice(pageSeen)) errors.push(`page: ${String(e?.text).split('\n')[0].slice(0, 200)}`)
+      // Playwright's message has no "Error: " prefix; drop it so both engines read the same.
+      for (const e of page.slice(pageSeen)) errors.push(`page: ${String(e?.text).split('\n')[0].replace(/^Error: /, '').slice(0, 200)}`)
       pageSeen = page.length
       await call('console', '--clear')
       if (!shot?.success) {
@@ -103,6 +109,7 @@ export async function captureWithAgentBrowser(o, run) {
     }
   } finally {
     await call('close')
+    rmSync(join(home, '.agent-browser', `ui-shot-${process.pid}.target`), { force: true })
   }
   return results
 }

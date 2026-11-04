@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -102,13 +102,14 @@ test('the agent-browser fallback: one isolated session, viewport, open, screensh
   const session = ab.calls[0][ab.calls[0].indexOf('--session') + 1]
   assert.ok(ab.calls.every(c => c.includes('--json') && c[c.indexOf('--session') + 1] === session), 'every call uses --json and one session')
   const verbs = ab.calls.map(c => c.slice(c.indexOf('--session') + 2).join(' '))
-  assert.equal(verbs[0], 'set viewport 1440 900')
-  assert.equal(verbs[1], 'open http://x/')
-  assert.equal(verbs[2], 'wait 200')
-  assert.match(verbs[3], /^screenshot --full .*shot-1440x900\.png$/)
+  assert.equal(verbs[0], 'set media light', 'same color scheme as Playwright, not the OS one')
+  assert.equal(verbs[1], 'set viewport 1440 900')
+  assert.equal(verbs[2], 'open http://x/')
+  assert.equal(verbs[3], 'wait 200')
+  assert.match(verbs[4], /^screenshot --full .*shot-1440x900\.png$/)
   assert.equal(verbs[verbs.length - 1], 'close')
   const [few] = await captureWithAgentBrowser(parseArgs(['http://x/', '--out', OUT]), fakeAgentBrowser().run)
-  assert.deepEqual(few.errors, ['console: boom 0', 'page: Error: kaput'])
+  assert.deepEqual(few.errors, ['console: boom 0', 'page: kaput'])
 })
 
 test('agent-browser: page errors that pile up in the session are reported once (0.27 ignores errors --clear)', async () => {
@@ -122,7 +123,24 @@ test('agent-browser: page errors that pile up in the session are reported once (
     return { success: true, data: {}, error: null }
   }
   const out = await captureWithAgentBrowser(parseArgs(['http://x/', '--viewports', '1440x900,390x844', '--out', OUT]), run)
-  assert.deepEqual(out.map(r => r.errors), [['page: Error: e0'], ['page: Error: e1']])
+  // The "Error: " prefix is dropped, so both engines print `page: <message>`.
+  assert.deepEqual(out.map(r => r.errors), [['page: e0'], ['page: e1']])
+})
+
+test('agent-browser: the session target file it leaves after close is removed', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'ui-shot-home-'))
+  try {
+    const target = join(home, '.agent-browser', `ui-shot-${process.pid}.target`)
+    const other = join(home, '.agent-browser', 'mine.target')
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, '{}')
+    writeFileSync(other, '{}')
+    await captureWithAgentBrowser(parseArgs(['http://x/', '--out', OUT]), fakeAgentBrowser().run, { home })
+    assert.equal(existsSync(target), false)
+    assert.equal(existsSync(other), true)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
 })
 
 test('agent-browser: a failed navigation is ok:false and the session is still closed', async () => {
