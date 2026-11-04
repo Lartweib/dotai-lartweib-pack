@@ -121,7 +121,10 @@ test('permissions.jsonc denies the shell guard secrets per harness', () => {
   assert.equal(oc['*.env.example'], 'allow')
   assert.equal(keys.at(-1), '*.env.example', 'last match wins in OpenCode')
   const agy = denies('antigravity-cli')
-  for (const p of denied.filter(p => !/[*?[]/.test(p))) assert.ok(agy.includes(p.replace(/\/$/, '')), `agy ${p}`)
+  // agy does not expand `~/`, so its home entries use the engine's `${DOTAI_HOME}`.
+  const agyPath = p => p.replace(/\/$/, '').replace(/^~\//, '${DOTAI_HOME}/')
+  for (const p of denied.filter(p => !/[*?[]/.test(p))) assert.ok(agy.includes(agyPath(p)), `agy ${p}`)
+  assert.ok(!agy.some(p => p.startsWith('~/')), 'agy has no ~/ entries')
   for (const x of ENV_VARIANTS) assert.ok(agy.includes(x), `agy ${x}`)
   // The shell and read guards' list covers every variant through `.env.*`, and keeps the example.
   const match = compilePatterns(lines)

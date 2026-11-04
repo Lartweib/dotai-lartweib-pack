@@ -17,8 +17,9 @@
   //                matches only at the workspace root: `.env` does not deny `sub/.env`, and
   //                `**/.env` denies nothing (agy 1.4.12, trial 2026-11-04). For nested secrets
   //                read-guard is the only control on agy.
-  //                agy does not expand `~/` (agy 1.4.12, trial 2026-11-03): those entries deny
-  //                nothing until the engine offers a home placeholder; read-guard covers them.
+  //                agy does not expand `~/` (agy 1.4.12, trial 2026-11-03), so its home paths
+  //                use `${DOTAI_HOME}`, which the engine turns into the real home directory with
+  //                forward slashes while staging (dotai PACK-FORMAT); read-guard covers them too.
   "permission": {},
   "claudecode": {
     "permission": {
@@ -76,12 +77,12 @@
         ".env.preview": "deny",
         ".env.staging": "deny",
         ".env.test": "deny",
-        "~/.ssh": "deny",
-        "~/.aws": "deny",
-        "~/.config/gcloud": "deny",
-        "~/.wrangler": "deny",
-        "~/.claude/.credentials.json": "deny",
-        "~/.gemini/oauth_creds.json": "deny"
+        "${DOTAI_HOME}/.ssh": "deny",
+        "${DOTAI_HOME}/.aws": "deny",
+        "${DOTAI_HOME}/.config/gcloud": "deny",
+        "${DOTAI_HOME}/.wrangler": "deny",
+        "${DOTAI_HOME}/.claude/.credentials.json": "deny",
+        "${DOTAI_HOME}/.gemini/oauth_creds.json": "deny"
       }
     }
   }
