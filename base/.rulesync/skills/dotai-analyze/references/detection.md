@@ -14,7 +14,7 @@ Pack names: the base skills (`memory`, `delegate`, `spec`, `autonomous`, `dotai-
 | Duplicate hook | `.claude/settings.json`, `.claude/settings.local.json` (`hooks`), `.agents/hooks.json`, `.opencode/plugins/` | It does what a pack hook does: `SessionStart` state or memory injection, Agent model guard, Bash guards, read-size guard, statusline | Propose removal, or a move to the profile's config key |
 | Memory MCP | `.mcp.json`, `.claude/settings*.json` | An `engram` MCP server (the pack uses the CLI, 0041) | Flag; the user decides |
 | User plugin duplicating a profile | `claude plugin list` | The `cloudflare` plugin (`cloudflare@cloudflare`) with `cloudflare` applied: it duplicates `cloudflare:wrangler` and `cloudflare:workers-best-practices` | Flag; the user runs `claude plugin uninstall cloudflare@cloudflare` (user scope, never touched by this skill) |
-| Outdated CLI | `agent-browser --version` | Below 0.38.0 with `ui` applied: `browser-tooling` needs `snapshot --delta` and `screenshot --if-changed` | Flag as a blocking step; the user runs `npm i -g agent-browser@0.41.1` |
+| Outdated CLI | `agent-browser --version` | Below 0.38.0 with `ui` applied: `browser-tooling` needs `snapshot --delta` and `screenshot --if-changed` | Flag as a blocking step; the user runs `npm i -g agent-browser@0.41.2` |
 
 Known cases (profile READMEs, "Onboarding clashes" and notes):
 

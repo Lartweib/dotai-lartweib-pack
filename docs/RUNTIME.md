@@ -73,13 +73,13 @@ What each source level contains ([DESIGN §3 and §4](DESIGN.md#3-global-base)):
 | Level | Content | Always-on cost |
 |---|---|---|
 | **Base** | Core `AGENTS.md`, cost policy, task router ([0020](decisions/0020-drop-sdd-lightweight-task-router.md)), sessions-by-topic rule ([0024](decisions/0024-sessions-by-topic-clean-context.md)), `delegate` skill, hooks (`PreToolUse` on `Agent`, `timeout`, Bash guards that ask for destructive commands and filter denied paths, a size-based `Read` hook for artifacts), `permissions.deny` for secrets, `memory` skill and Engram hooks, statusline | Rules ≤ 2,500, listing ≤ ~2,000, total warn 4,000 in Claude Code and agy ([0046](decisions/0046-split-always-on-budget.md)) |
-| **Profiles** (flat and combinable, [dotai 0023](../../dotai/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md)) | `godot`, `autonomous-orchestra` (autonomous backlogs), `video` ([0040](decisions/0040-project-onboarding-and-on-demand-profiles.md)), `web`, `astro-cloudflare`, `next-vercel-supabase`, `seo`, `desktop`, `tooling` and per-stack tooling profiles; final list is reference pack content | `web` ~1.1k, `godot` 1–3k, `tooling` ≤0.7k, `desktop` ≤0.5k |
+| **Profiles** (flat and combinable, [dotai 0023](../../dotai/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md)) | The v1 set of [0044](decisions/0044-v1-profile-set.md) (manifest `dotai.yaml`): `autonomous-orchestra`, `cloudflare`, `desktop`, `godot`, `seo`, `tooling`, `ui`, `video`, `web` | `web` ~1.1k, `godot` 1–3k, `tooling` ≤0.7k, `desktop` ≤0.5k |
 | **Modules** | `delegate`, guards, panel, clash cleanup (`dotai-analyze`); per [dotai 0004](../../dotai/docs/decisions/0004-installer-language-and-shape.md), opt-in | On demand |
 
-Pending:
+Resolved:
 
-- Headless agy is a viable hub ([0043](decisions/0043-v1-is-the-complete-pack.md), update 2026-11-02); how a headless hub learns its quota is still open: [OPEN-QUESTIONS, measurement 1](OPEN-QUESTIONS.md).
-- Stability of the mods API for the panel: [OPEN-QUESTIONS, measurement 12](OPEN-QUESTIONS.md).
+- Headless agy is a viable hub ([0043](decisions/0043-v1-is-the-complete-pack.md), update 2026-11-02). It has no quota signal under `-p`; for v1 an unknown quota counts as available and exhaustion is detected from the quota error when it arrives ([0022](decisions/0022-delegate-visible-orca-backend.md#update-2026-10-26-unknown-quota-counts-as-available), [0043](decisions/0043-v1-is-the-complete-pack.md), update 2026-11-19). A real quota-error sample is a TODO(trial) for real use.
+- No mods in v1, so the mods API stability no longer matters for the panel ([0044](decisions/0044-v1-profile-set.md), update; measurement 12).
 
 ## 3. Runtime
 

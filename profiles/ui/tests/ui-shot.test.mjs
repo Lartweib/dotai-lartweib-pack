@@ -194,6 +194,7 @@ test('engine: both unavailable is one actionable line', async () => {
   assert.equal(none[0].engine, null)
   assert.match(none[0].errors[0], /devDependency/)
   assert.match(none[0].errors[0], /agent-browser.*0\.38/)
+  assert.match(none[0].errors[0], /npm i -g agent-browser@0\.41\.2\b/, 'the pin the trials ran on')
   const broken = await shoot(parseArgs(['http://x', '--out', OUT]), { chromium: fakeChromium({ launchFails: 'launch failed' }), agentBrowser: null })
   assert.equal(broken.length, 1)
   assert.match(broken[0].errors[0], /launch failed/)

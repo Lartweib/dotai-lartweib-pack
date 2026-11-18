@@ -158,7 +158,7 @@ function projectChromium(cwd) {
   return null
 }
 
-const INSTALL_HINT = 'install playwright as a devDependency for repeatable captures (npm i -D playwright && npx playwright install chromium), or agent-browser 0.38 or later on PATH (npm i -g agent-browser@0.41.1)'
+const INSTALL_HINT = 'install playwright as a devDependency for repeatable captures (npm i -D playwright && npx playwright install chromium), or agent-browser 0.38 or later on PATH (npm i -g agent-browser@0.41.2)'
 
 // Playwright first; agent-browser when Playwright is missing or cannot run (launch or
 // browser setup throws). A page that fails to load is a result, not a reason to switch:

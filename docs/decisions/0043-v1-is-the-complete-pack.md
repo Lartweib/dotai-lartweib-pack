@@ -46,3 +46,7 @@ agy-hub parity no longer waits on measurement 1: headless agy 1.4.12 (`agy -p`) 
 - Each subagent launch costs about 19k tokens.
 
 The global panel's question 20 was resolved by [0044](0044-v1-profile-set.md): no mods in v1.
+
+## Update 2026-11-19: headless quota closed for v1
+
+The quota gap above is closed for v1 with the rule of [0022](0022-delegate-visible-orca-backend.md#update-2026-10-26-unknown-quota-counts-as-available) (update 2026-10-26): an unknown quota counts as available, and exhaustion is detected from the quota error of `agy -p` when it arrives, which marks the pool exhausted for the run. No private endpoint is read. A real quota-error sample stays a TODO(trial) for real use; until then detection relies on the strings found in the binary.

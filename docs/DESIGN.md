@@ -230,7 +230,7 @@ A single job schema, token ledger, forced UTF-8, timeouts and no absolute paths.
 ### Delegate to-dos
 
 - Confirm that agy's `rate_limits.json` exposes the 5 h and 7 d windows with their reset per pool (the research only documents two pools and thresholds).
-- ~~Test headless agy as a full hub~~: viable (measurement 1, [0043](decisions/0043-v1-is-the-complete-pack.md) update 2026-11-02): shell, async subagents with a model setting (pin `gemini-*`), tasks, scheduling; ~19k tokens per subagent launch. Open: no quota signal under `-p` (the statusline does not run).
+- ~~Test headless agy as a full hub~~: viable (measurement 1, [0043](decisions/0043-v1-is-the-complete-pack.md) update 2026-11-02): shell, async subagents with a model setting (pin `gemini-*`), tasks, scheduling; ~19k tokens per subagent launch. No quota signal under `-p` (the statusline does not run); closed for v1 by counting an unknown quota as available and detecting the quota error ([0043](decisions/0043-v1-is-the-complete-pack.md) update 2026-11-19).
 - agy as a visual judge: calibration before trusting it ([P-05](OPEN-QUESTIONS.md)); 12 or more consecutive frames for motion.
 - `PreToolUse` support in agy for guards and RTK (unverified).
 - `godot-gdscript` only exists for Claude Code: mirror it as a standard `SKILL.md` for agy.

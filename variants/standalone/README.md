@@ -39,7 +39,7 @@ A job file holds the same keys as the flags: `{"spec": "task.md", "model": "..."
 
 ## Configuration (user scope, owned by the user)
 
-`<pack home>` is `~/.dotai/packs/dotai-lartweib-pack/` (`DOTAI_DELEGATE_HOME` overrides it, as the tests do). The engine reserves `.dotai/packs/<pack>/` only at project scope: this user-scope directory is the pack's by convention, never deleted (`~/.dotai` is never removed) and not backed up on undo. Thresholds live in `<pack home>/delegate.yaml` and change only by editing it, never from the chat (0019, 0034):
+`<pack home>` is `~/.dotai/packs/dotai-lartweib-pack/` (`DOTAI_DELEGATE_HOME` overrides it, as the tests do). The engine reserves `.dotai/packs/<flat identity>/` only at project scope (dotai 0041, amended by 0044): this user-scope directory is the pack's by convention, never deleted (`~/.dotai` is never removed) and not backed up on undo. It does not overlap the engine's git clones, which live at `~/.dotai/packs/github.com/<owner>/<repo>/` (dotai 0044); `pack update` and `pack remove` touch only that clone, and the recovery sweep only `~/.dotai/packs/github.com`. Thresholds live in `<pack home>/delegate.yaml` and change only by editing it, never from the chat (0019, 0034):
 
 ```yaml
 delegate:
