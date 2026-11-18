@@ -25,7 +25,7 @@ The sources do not record rejected alternatives for the classification.
 
 ## Consequences
 
-The shape of onboarding (read-only `dotai-analyze` skill, "sync" mode) is in [DESIGN §4.5](../DESIGN.md#45-onboarding-layer-4) (onboarding, layer 4).
+The shape of onboarding (read-only `dotai-analyze` skill, "sync" mode) is in [DESIGN §4.5](../DESIGN.md#onboarding) (onboarding, layer 4).
 
 ## Evidence
 

@@ -33,7 +33,7 @@ Numeric keys must be plain numbers: a value such as `4096MB` falls back to the d
 
 The tools read this file only inside the project: the walk up from the current directory stops at `CLAUDE_PROJECT_DIR` when set, else at the nearest directory with `.git`, else at the nearest with `.dotai/`, and never reaches the home directory. A config above the project is ignored.
 
-**Trust model.** `stateCommand` runs through the shell at every session start. It is trusted because it comes only from `.dotai/config.yaml`, which is local, never committed, and written by onboarding or the user. Do not commit the file or copy one from an untrusted source.
+**Trust model.** `stateCommand` runs through the shell at every session start. It is trusted because it comes only from `.dotai/config.yaml`, which is local, never committed, and written only by the user. Do not commit the file or copy one from an untrusted source.
 
 ## How the cap works
 

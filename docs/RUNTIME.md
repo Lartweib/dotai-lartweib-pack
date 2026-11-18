@@ -157,7 +157,7 @@ Safety net for paths the hook does not cover: `CLAUDE_CODE_SUBAGENT_MODEL=sonnet
 
 ### 3.c Project onboarding
 
-Decided in [0010](decisions/0010-onboarding-profile-classification.md) and [0040](decisions/0040-project-onboarding-and-on-demand-profiles.md) (the pack backs up affected files before cleaning clashes) and [0047](decisions/0047-adopt-dotai-owned-onboarding.md) (dotai's own session-start hook and `dotai-profiles` skill choose the profiles, [dotai 0045](../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md); a task that needs a missing profile loads `dotai-profiles`); shape in [DESIGN §4.5](DESIGN.md#45-onboarding-layer-4). Mods are always installed at project level (invariant, see §5).
+Decided in [0010](decisions/0010-onboarding-profile-classification.md) and [0040](decisions/0040-project-onboarding-and-on-demand-profiles.md) (the pack backs up affected files before cleaning clashes) and [0047](decisions/0047-adopt-dotai-owned-onboarding.md) (dotai's own session-start hook and `dotai-profiles` skill choose the profiles, [dotai 0045](../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md); a task that needs a missing profile loads `dotai-profiles`); shape in [DESIGN §4.5](DESIGN.md#onboarding). Mods are always installed at project level (invariant, see §5).
 
 ```mermaid
 sequenceDiagram

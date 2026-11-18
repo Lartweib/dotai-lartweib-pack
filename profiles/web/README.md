@@ -23,7 +23,7 @@ web:
 
 The file is read only inside the project (the walk stops at `CLAUDE_PROJECT_DIR`, `.git` or `.dotai/`, and never reaches the home directory).
 
-**Trust model.** `web.check` runs through the shell at the end of every turn with web changes. It is trusted because it comes only from `.dotai/config.yaml`, which is local, never committed, and written by onboarding or the user. Do not commit the file or copy one from an untrusted source.
+**Trust model.** `web.check` runs through the shell at the end of every turn with web changes. It is trusted because it comes only from `.dotai/config.yaml`, which is local, never committed, and written only by the user. Do not commit the file or copy one from an untrusted source.
 
 ## Optional: codegraph (opt-in pilot, pack 0012)
 
