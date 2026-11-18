@@ -35,7 +35,7 @@
         "connected": true,
         "writable": true,
         "lastOutputAt": 1793741954269,
-        "preview": "C:\\Users\\me\\AppData\\Local\\Temp\\dotai-trial\\err.txt\" & ping -n 8 127.0.0.1 >nul) & type nul > \"C:\\Users\\me\\AppData\\Local\\Temp\\dotai-trial\\done\" & exit",
+        "preview": "C:\\Temp\\dotai-trial\\err.txt\" & ping -n 8 127.0.0.1 >nul) & type nul > \"C:\\Temp\\dotai-trial\\done\" & exit",
         "executionHostId": "local"
       }
     ],

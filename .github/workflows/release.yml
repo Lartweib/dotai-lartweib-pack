@@ -1,0 +1,47 @@
+name: release
+
+# A tag vX.Y.Z on main runs the checks, which also fail when the tag differs from dotai.yaml's
+# version, then publishes the GitHub release with notes generated from the commits (pack 0048).
+# Off while the repository is private.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: ${{ !github.event.repository.private }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    if: ${{ !github.event.repository.private }}
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: tag is on main
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          commit=$(git rev-parse "refs/tags/$TAG^{commit}")
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "::error::$TAG points to $commit, which is not on main"
+            exit 1
+          fi
+      - name: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --verify-tag --generate-notes
