@@ -6,44 +6,46 @@ rulesync: 41.0.0 # the only version whose checksum the engine embeds (dotai 0029
 harnesses: [claudecode, antigravity-cli]
 optional-harnesses: [opencode] # minimal, occasional use (0009): an install skips it when absent
 
-profiles: # set from 0044. Hints are file globs from the project root; node_modules/<pkg>/ stands in
-  # for a package.json dependency, which hints cannot name (engine question).
+profiles: # set from 0044. dotai's dotai-profiles skill knows each profile only by its description
+  # and hints (dotai 0045, pack 0047). Hints are path.Match globs over the whole repo-relative path
+  # of tracked files (git ls-files): `package.json` is the root one only. Installed packages are untracked,
+  # so a package.json dependency goes in the description.
   godot:
     path: profiles/godot
-    description: Godot 4 games in GDScript.
+    description: Godot 4 games in GDScript (project.godot, .gd scripts, .tscn scenes).
     hints: [project.godot, export_presets.cfg]
   autonomous-orchestra:
     path: profiles/autonomous-orchestra
-    description: Long autonomous work on any stack (workflows, scheduled runs, monitors).
-    hints: [] # suggested on demand, not by markers
+    description: Long unattended work on any stack (worktree lanes, scheduled runs, monitors). No marker files; suggest it only when the user plans long autonomous runs.
+    hints: []
   web:
     path: profiles/web
-    description: Web framework, build and checks (Astro, Next.js, Vite).
+    description: Web apps on Astro, Next.js, SvelteKit or Vite (the framework in package.json); build and checks.
     hints: [astro.config.*, next.config.*, svelte.config.*, vite.config.*, index.html]
   ui:
     path: profiles/ui
-    description: Design skills and browser capture, for any project with a UI.
-    hints: [DESIGN.md, tailwind.config.*, node_modules/tailwindcss/, playwright.config.*, astro.config.*, next.config.*, vite.config.*]
+    description: Design skills and browser capture for any project with a UI (components, CSS, tailwindcss in package.json).
+    hints: [DESIGN.md, components.json, tailwind.config.*, playwright.config.*, astro.config.*, next.config.*, vite.config.*]
   seo:
     path: profiles/seo
-    description: SEO audits, applied on demand.
-    hints: [] # suggested on demand, like autonomous-orchestra
+    description: SEO audits of a public site. No marker files; suggest it only when the user asks for an audit, and remove it afterwards.
+    hints: []
   cloudflare:
     path: profiles/cloudflare
-    description: Cloudflare Workers and Pages with wrangler.
+    description: Cloudflare Workers and Pages with wrangler (a wrangler config, or wrangler in package.json).
     hints: [wrangler.toml, wrangler.jsonc, wrangler.json]
   video:
     path: profiles/video
-    description: Making and analyzing video.
-    hints: [remotion.config.*, node_modules/@remotion/, hyperframes/]
+    description: Making and analyzing video (Remotion with @remotion/* in package.json, Hyperframes, video files to review).
+    hints: [remotion.config.*, hyperframes/*]
   tooling:
     path: profiles/tooling
-    description: CLIs, scripts and developer tooling (Go, Python).
+    description: CLIs, scripts and developer tooling in Go or Python, and JS tool workspaces (pnpm, Biome).
     hints: [go.mod, pyproject.toml, pnpm-workspace.yaml, biome.json, biome.jsonc] # no Cargo.toml: no Rust project yet
   desktop:
     path: profiles/desktop
-    description: Desktop apps with Electron.
-    hints: [electron-builder.*, forge.config.*, node_modules/electron/] # or a "build" key in package.json
+    description: Desktop apps with Electron (electron in package.json, electron-builder or Electron Forge).
+    hints: [electron-builder.*, forge.config.*, electron.vite.config.*]
 
 variants:
   standalone:

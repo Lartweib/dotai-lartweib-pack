@@ -1,6 +1,6 @@
 // Run: node --test base/tests/
-// SessionStart (pack 0040, 0042): suggest onboarding once when the project has no applied-profiles
-// marker; inject the author's Engram preferences, capped.
+// SessionStart (pack 0041, 0042, 0047): inject the author's Engram preferences, capped. Project
+// onboarding is dotai's own hook and its dotai-profiles skill, so this hook never mentions it.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -9,7 +9,6 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { onboardingHint } from '../dotai/tools/session-start.mjs'
 import { fakeEngram } from './fake-engram.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -23,34 +22,10 @@ function project() {
   return { base, root, home: join(base, 'home') }
 }
 
-test('the hint appears without the engine marker and disappears with it or with the done marker', () => {
-  const p = project()
-  try {
-    const opts = { env: {}, home: p.home }
-    assert.match(onboardingHint(join(p.root, 'src'), opts), /dotai-analyze/)
-    mkdirSync(join(p.root, '.dotai', 'packs', 'dotai-lartweib-pack'), { recursive: true })
-    assert.match(onboardingHint(p.root, opts), /dotai-analyze/, 'an empty pack directory is not done')
-    writeFileSync(join(p.root, '.dotai', 'packs', 'dotai-lartweib-pack', 'onboarded.json'), '{}')
-    assert.equal(onboardingHint(p.root, opts), '')
-    rmSync(join(p.root, '.dotai', 'packs'), { recursive: true })
-    writeFileSync(join(p.root, '.dotai', 'state.json'), '{}')
-    assert.equal(onboardingHint(p.root, opts), '')
-  } finally {
-    rmSync(p.base, { recursive: true, force: true })
-  }
-})
-
-test('outside a project, or at the home directory, there is no hint', () => {
-  const p = project()
-  try {
-    const loose = join(p.base, 'loose dir')
-    mkdirSync(loose)
-    assert.equal(onboardingHint(loose, { env: {}, home: p.home }), '')
-    mkdirSync(join(p.home, '.git'), { recursive: true })
-    assert.equal(onboardingHint(p.home, { env: {}, home: p.home }), '')
-  } finally {
-    rmSync(p.base, { recursive: true, force: true })
-  }
+test('the module keeps no onboarding of its own: dotai onboards the project (pack 0047)', async () => {
+  const mod = await import('../dotai/tools/session-start.mjs')
+  assert.equal(mod.onboardingHint, undefined)
+  assert.equal(mod.DONE_MARKER, undefined)
 })
 
 // The pack home (hook-errors.log) is a scratch directory: the tests never touch the real one.
@@ -64,13 +39,13 @@ function runHook(payload, harness, env) {
   })
 }
 
-test('Claude Code gets plain text with the hint and the preferences, read-only and capped', () => {
+test('Claude Code gets plain text with the preferences only, read-only and capped', () => {
   const p = project()
   const fake = fakeEngram({ out: `${'pref line\n'.repeat(60)}` })
   try {
     const r = runHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: p.root }, 'claudecode', { ...fake.env, USERPROFILE: p.home, HOME: p.home })
     assert.equal(r.status, 0)
-    assert.match(r.stdout, /dotai-analyze/)
+    assert.doesNotMatch(r.stdout, /dotai-analyze|dotai-profiles|onboard|applied profiles/i, 'no onboarding line in a project without profiles')
     assert.match(r.stdout, /pref line/)
     assert.ok(r.stdout.length < 1600, `capped: ${r.stdout.length}`)
     const calls = fake.calls()
@@ -92,12 +67,11 @@ test('agy gets injectSteps JSON; a resumed session gets nothing new', () => {
     const env = { ...fake.env, USERPROFILE: p.home, HOME: p.home }
     const agy = runHook({ conversationId: 'c', workspacePaths: [p.root] }, 'antigravity', env)
     const step = JSON.parse(agy.stdout).injectSteps[0].systemMessage.systemMessage
-    assert.match(step, /dotai-analyze/)
+    assert.doesNotMatch(step, /dotai-analyze|dotai-profiles|onboard|applied profiles/i)
     assert.match(step, /prefers brief answers/)
     const resumed = runHook({ source: 'resume', cwd: p.root }, 'claudecode', env)
     assert.equal(resumed.stdout, '')
     const compacted = runHook({ source: 'compact', cwd: p.root }, 'claudecode', env)
-    assert.doesNotMatch(compacted.stdout, /dotai-analyze/, 'the hint is for a new session only')
     assert.match(compacted.stdout, /prefers brief answers/, 'preferences come back after compaction')
   } finally {
     rmSync(p.base, { recursive: true, force: true })
@@ -105,7 +79,7 @@ test('agy gets injectSteps JSON; a resumed session gets nothing new', () => {
   }
 })
 
-test('a missing or failing engram, or no results, leaves only the hint', () => {
+test('a missing or failing engram, or no results, prints no preferences', () => {
   const p = project()
   const failing = fakeEngram({ out: 'boom', exit: 3 })
   const empty = fakeEngram({ out: 'No memories found.\n' })
@@ -113,8 +87,7 @@ test('a missing or failing engram, or no results, leaves only the hint', () => {
     for (const env of [{ PATH: join(p.base, 'nothing'), Path: join(p.base, 'nothing') }, failing.env, empty.env]) {
       const r = runHook({ source: 'startup', cwd: p.root }, 'claudecode', { ...env, USERPROFILE: p.home, HOME: p.home })
       assert.equal(r.status, 0)
-      assert.match(r.stdout, /dotai-analyze/)
-      assert.doesNotMatch(r.stdout, /boom|No memories/)
+      assert.doesNotMatch(r.stdout, /boom|No memories|dotai-analyze|dotai-profiles|onboard/i)
     }
   } finally {
     rmSync(p.base, { recursive: true, force: true })

@@ -12,7 +12,7 @@
   //                  allowed launches appended to the delegate launch log;
   //                  Claude Code only: OpenCode takes the model from the definition and agy
   //                  launches go through delegate, which validates the pair (0030)
-  //   session-start  onboarding hint (0040) and Engram preferences (0041, 0042)
+  //   session-start  Engram preferences (0041, 0042); dotai adds its own onboarding hook (0047)
   //   memory-compact session summary to Engram (0042); agy has no PreCompact event
   // OpenCode gets the guards only: its rulesync plugin (staged 2026-11-02) runs sessionStart and
   // compaction commands with no stdin and drops their output, so neither hook could work there.

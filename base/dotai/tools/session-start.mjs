@@ -1,23 +1,15 @@
-// SessionStart for every harness.
-//   1. Onboarding (pack 0040): in a project without the engine's applied-profiles marker
-//      (.dotai/state.json, PACK-FORMAT) and without the pack's done marker
-//      (.dotai/packs/dotai-lartweib-pack/onboarded.json, written by dotai-analyze), the agent is
-//      told to suggest dotai-analyze once. Only for a new session (Claude Code `source: startup`,
-//      or a harness that sends no source). The hook writes nothing in the project: a marker of
-//      its own would create .dotai/ in a project that never asked for dotai.
-//   2. Memory (0041, 0042): the author's preferences from Engram, through its CLI, read-only and
+// SessionStart for every harness. Project onboarding is dotai's own session-start hook and its
+// dotai-profiles skill (dotai 0045, pack 0047), so this hook never mentions profiles.
+//   1. Memory (0041, 0042): the author's preferences from Engram, through its CLI, read-only and
 //      capped at about 300 tokens. Also after a compaction, which drops them from the context;
 //      not on resume, which keeps them. Pinned items are not injected yet: the pinned CLI
 //      (v1.20.0) has no command that lists them (TODO(trial)).
-//   3. Memory failures: the newest entry of <pack home>/hook-errors.log (a summary PreCompact
+//   2. Memory failures: the newest entry of <pack home>/hook-errors.log (a summary PreCompact
 //      could not save, or a preference search that failed here) becomes one line, then the log
 //      is cleared (hook-lib takeHookError). A missing engram is not recorded here: it only means
 //      memory is not installed.
 // Claude Code and OpenCode get plain text; agy only reads injectSteps JSON (hook-lib
 // formatSessionStart). Never fails the session. Entry point: `node session-start.mjs <harness>`.
-import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import {
@@ -28,30 +20,16 @@ import {
   formatSessionStart,
   harnessArg,
   parsePayload,
-  projectRootOf,
   readStdin,
   recordHookError,
   runCapped,
-  samePath,
   takeHookError,
 } from './hook-lib.mjs'
 
 export { PACK }
-export const DONE_MARKER = join('.dotai', 'packs', PACK, 'onboarded.json')
-const ENGINE_MARKER = join('.dotai', 'state.json')
 const PREFS_MAX_LINES = 15
 const PREFS_MAX_CHARS = 1200 // about 300 tokens (0041)
 const PREFS_TIMEOUT_MS = 8000
-
-const HINT =
-  'dotai: this project has no applied profiles (.dotai/state.json is missing). Suggest once that the user runs the dotai-analyze skill to choose profiles and clean up clashing config; do not run it unasked.'
-
-export function onboardingHint(cwd, { env = process.env, home = homedir() } = {}) {
-  const root = projectRootOf(cwd, env, home)
-  if (!root || samePath(root, home)) return ''
-  if (existsSync(join(root, DONE_MARKER)) || existsSync(join(root, ENGINE_MARKER))) return ''
-  return HINT
-}
 
 // `engram search` needs a query; "preference" with the type filter asks for the author's typed
 // preferences (TODO(trial): check what the FTS query returns on the real store).
@@ -87,7 +65,6 @@ async function main() {
   const parts = []
   try {
     parts.push(memoryNotice())
-    if (!source || source === 'startup') parts.push(onboardingHint(parsed.cwd))
     if (source !== 'resume') parts.push(await preferences(parsed.cwd))
   } catch (e) {
     process.stderr.write(`session start: ${e.message}\n`)

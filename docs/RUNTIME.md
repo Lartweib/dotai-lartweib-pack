@@ -74,7 +74,7 @@ What each source level contains ([DESIGN §3 and §4](DESIGN.md#3-global-base)):
 |---|---|---|
 | **Base** | Core `AGENTS.md`, cost policy, task router ([0020](decisions/0020-drop-sdd-lightweight-task-router.md)), sessions-by-topic rule ([0024](decisions/0024-sessions-by-topic-clean-context.md)), `delegate` skill, hooks (`PreToolUse` on `Agent`, `timeout`, Bash guards that ask for destructive commands and filter denied paths, a size-based `Read` hook for artifacts), `permissions.deny` for secrets, `memory` skill and Engram hooks, statusline | Rules ≤ 2,500, listing ≤ ~2,000, total warn 4,000 in Claude Code and agy ([0046](decisions/0046-split-always-on-budget.md)) |
 | **Profiles** (flat and combinable, [dotai 0023](../../dotai/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md)) | `godot`, `autonomous-orchestra` (autonomous backlogs), `video` ([0040](decisions/0040-project-onboarding-and-on-demand-profiles.md)), `web`, `astro-cloudflare`, `next-vercel-supabase`, `seo`, `desktop`, `tooling` and per-stack tooling profiles; final list is reference pack content | `web` ~1.1k, `godot` 1–3k, `tooling` ≤0.7k, `desktop` ≤0.5k |
-| **Modules** | `delegate`, guards, panel, analyzer (`dotai-analyze`); per [dotai 0004](../../dotai/docs/decisions/0004-installer-language-and-shape.md), opt-in | On demand |
+| **Modules** | `delegate`, guards, panel, clash cleanup (`dotai-analyze`); per [dotai 0004](../../dotai/docs/decisions/0004-installer-language-and-shape.md), opt-in | On demand |
 
 Pending:
 
@@ -157,19 +157,22 @@ Safety net for paths the hook does not cover: `CLAUDE_CODE_SUBAGENT_MODEL=sonnet
 
 ### 3.c Project onboarding
 
-Decided in [0010](decisions/0010-onboarding-profile-classification.md) and [0040](decisions/0040-project-onboarding-and-on-demand-profiles.md) (a `SessionStart` hook suggests onboarding when the project has no applied-profiles record; the pack backs up affected files before cleaning clashes; profiles not applied are suggested on demand from a catalog line in `AGENTS.md`); shape in [DESIGN §4.5](DESIGN.md#45-onboarding-layer-4). Mods are always installed at project level (invariant, see §5).
+Decided in [0010](decisions/0010-onboarding-profile-classification.md) and [0040](decisions/0040-project-onboarding-and-on-demand-profiles.md) (the pack backs up affected files before cleaning clashes) and [0047](decisions/0047-adopt-dotai-owned-onboarding.md) (dotai's own session-start hook and `dotai-profiles` skill choose the profiles, [dotai 0045](../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md); a task that needs a missing profile loads `dotai-profiles`); shape in [DESIGN §4.5](DESIGN.md#45-onboarding-layer-4). Mods are always installed at project level (invariant, see §5).
 
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant AN as dotai-analyze, read-only
+  participant H as dotai onboarding hook
+  participant AN as dotai-profiles skill
+  participant CL as dotai-analyze, read-only until approval
   participant DA as dotai apply
   participant P as Project
   participant O as Orca
 
-  U->>AN: first session or command
-  AN->>P: detect stack by content, not by path
-  AN->>U: a few targeted questions
+  H->>U: one line: not set up, or profiles may no longer fit
+  U->>AN: load it
+  AN->>P: detect stack by content, hints as evidence
+  AN->>U: a few targeted questions, then the dry-run plan
   U-->>AN: answers and approval
   AN->>DA: selected profiles
   DA->>P: profile agents, skills and MCP
@@ -178,6 +181,10 @@ sequenceDiagram
     DA->>O: register setup script, step 1 or 2 of the 0021 ladder
   end
   DA-->>U: summary of what was applied
+  opt old config clashes
+    U->>CL: clean up
+    CL->>P: back up, then remove only what the user approved
+  end
 ```
 
 Registering the setup script in Orca is optional and its exact form (`orca.yaml` or the `orca` CLI) is not defined (inferred from [0021](decisions/0021-orca-extend-dont-fork.md): configuration, then external integration).

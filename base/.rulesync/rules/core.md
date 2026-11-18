@@ -50,7 +50,7 @@ Judge the topic of each request. Same topic: stay. Related: suggest batching. Ne
 
 ## Profiles
 
-Catalog (combinable): `godot`, `autonomous-orchestra` (long autonomous work), `web` (Astro/Next), `ui` (design, browser capture), `seo`, `cloudflare`, `video`, `tooling` (Go, Python, CLIs), `desktop` (Electron). If a task matches a profile the project lacks, suggest applying it at project scope.
+If a task needs a profile the project lacks, load `dotai-profiles` to propose it.
 
 ## Memory
 

@@ -44,13 +44,14 @@ Links to engine records use the sibling path `../../../dotai/docs/decisions/<fil
 | [0037](0037-base-subagent-roster.md) | Base subagent roster | accepted | 2026-10-30 |
 | [0038](0038-base-bash-guards-ask-and-deny.md) | Base Bash guards: ask for destructive commands, deny for denied paths | accepted | 2026-10-31 |
 | [0039](0039-artifact-reads-guarded-by-size.md) | Artifact reads are guarded by size, not denied | accepted | 2026-10-31 |
-| [0040](0040-project-onboarding-and-on-demand-profiles.md) | Project onboarding by the pack, and profiles suggested on demand | accepted | 2026-11-01 |
+| [0040](0040-project-onboarding-and-on-demand-profiles.md) | Project onboarding by the pack, and profiles suggested on demand (partially superseded by 0047) | accepted | 2026-11-01 |
 | [0041](0041-engram-via-cli-and-hooks.md) | Engram through its CLI and hooks, not an always-loaded MCP | accepted | 2026-11-01 |
 | [0042](0042-memory-save-policy.md) | Memory save policy: Engram for the long term, `MEMORY.md` per project | accepted | 2026-11-01 |
 | [0043](0043-v1-is-the-complete-pack.md) | v1 is the complete pack, profiles included | accepted | 2026-11-01 |
 | [0044](0044-v1-profile-set.md) | The v1 profile set | accepted | 2026-11-01 |
 | [0045](0045-godot-guards-with-load-based-cap.md) | Godot guards in every Godot project, with a load-based process cap | accepted | 2026-11-01 |
 | [0046](0046-split-always-on-budget.md) | Split always-on budget: rules, listing, total | accepted | 2026-11-03 |
+| [0047](0047-adopt-dotai-owned-onboarding.md) | Adopt dotai's project onboarding; the pack keeps only the clash cleanup | accepted | 2026-11-18 |
 
 ## Superseded (history only)
 

@@ -25,4 +25,4 @@ No MCP is assumed: `wrangler` uses the Cloudflare MCP `docs` tool only "if avail
 
 ## Onboarding clashes
 
-The global `cloudflare` plugin (user scope) duplicates `cloudflare:wrangler` and `cloudflare:workers-best-practices`: uninstall it when the profile is applied. `dotai-analyze` must flag it; the user uninstalls it (`claude plugin uninstall cloudflare@cloudflare`), since onboarding never touches user-scope config. `web-perf` (on demand in `web`) goes with the plugin; take it alone from the Cloudflare skills repo when needed.
+The global `cloudflare` plugin (user scope) duplicates `cloudflare:wrangler` and `cloudflare:workers-best-practices`: uninstall it when the profile is applied. `dotai-analyze` must flag it; the user uninstalls it (`claude plugin uninstall cloudflare@cloudflare`), since the cleanup never touches user-scope config. `web-perf` (on demand in `web`) goes with the plugin; take it alone from the Cloudflare skills repo when needed.

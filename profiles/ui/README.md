@@ -31,7 +31,7 @@ The `impeccable` plugin's agent (`impeccable-manual-edit-applier`) has no `effor
 ## Onboarding clashes
 
 - Two web projects carry project copies named `agent-browser`, `web-design-guidelines` and `frontend-design`. `dotai-analyze` must flag them for removal.
-- `agent-browser --version` below 0.38.0 (for example 0.27.0): `dotai-analyze` flags it as a blocking step before the profile is used; the user upgrades it (`npm i -g agent-browser@0.41.1`), since onboarding never changes user-scope installs.
+- `agent-browser --version` below 0.38.0 (for example 0.27.0): `dotai-analyze` flags it as a blocking step before the profile is used; the user upgrades it (`npm i -g agent-browser@0.41.1`), since the cleanup never changes user-scope installs.
 
 ## TODO(trial)
 

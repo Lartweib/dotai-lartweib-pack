@@ -78,3 +78,7 @@ Engine answers:
 ## Update 2026-11-03: renamed
 
 The profile `obra` is now `autonomous-orchestra`, and its lane tool is `orchestra-lanes` (author, 2026-11-03; see [0044](0044-v1-profile-set.md)). The text above keeps the old name. The lane tool now meets the worktree consequence: `orchestra-lanes new` prints the `dotai apply --profile ...` of the profiles recorded in the main checkout's `.dotai/state.json`, and runs it with `--apply` when `dotai` is on PATH, saying so when it did not apply. The question on MCP entries during a running session is resolved (see the bullet above).
+
+## Update 2026-11-18: onboarding is dotai's
+
+Partially superseded by [0047](0047-adopt-dotai-owned-onboarding.md): dotai's `dotai-profiles` skill and session-start hook ([dotai 0045](../../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md)) replace the pack's onboarding hint, its done marker and the catalog line, so the planned catalog check (never built) is moot. The backup and the clash cleanup (`dotai-analyze`) and point 4 stand.
