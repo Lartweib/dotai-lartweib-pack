@@ -1,4 +1,4 @@
-// delegate-backend, standalone variant (pack 0028, 0032, 0034): runs agy (or OpenCode) headless,
+// delegate-backend, standalone variant (pack 0028, 0032, 0034, 0050): runs agy, claude or OpenCode headless,
 // and several jobs in parallel with one job file each. The contract lives in the base tool
 // delegate-core.mjs.
 import { pathToFileURL } from 'node:url'
@@ -27,7 +27,7 @@ export const adapter = {
   launch: spec => headlessLaunch(spec),
   workersGuide: () =>
     [
-      'Several agy workers (standalone):',
+      'Several workers (standalone):',
       '1. Write one JSON job file per worker: {"spec": "task.md", "model": "...", "effort": "...", "title": "...", "alt": "model:effort", "kind": "research|audit|code"}. A relative spec is read from the job file\'s folder.',
       `2. Run them in parallel: node "${TOOL}" run --jobs a.json b.json ... (at most maxParallel at once; one result line each, in order).`,
       `3. Watch them in a side terminal: node "${TOOL}" status --watch.`,

@@ -26,6 +26,8 @@
 // .dotai/tools/ (gitignore-style; hook-lib denyMatcher, where a project `!` line is ignored).
 // Keep deny-paths.base.txt in step with the secrets of base/.rulesync/permissions.jsonc
 // (DESIGN §3).
+//   4. In a delegated job (DOTAI_DELEGATE_CALLER in the hook's environment, pack 0050), a command
+//      that runs the delegate tools or names that variable is denied (see delegatedTry).
 // Never blocks on its own failure. Entry point: `node shell-guard.mjs <harness>` with the hook
 // payload on stdin.
 import { homedir } from 'node:os'
@@ -317,11 +319,25 @@ function deniedSearch(cmds, { cwd, root, home, match }) {
   return null
 }
 
+// 4. A delegated job (pack 0050): delegate-core sets DOTAI_DELEGATE_CALLER on every launched
+// harness, and this hook inherits that harness's environment, so with the variable present (even
+// empty) a command that runs the delegate tools, or names the variable at all (to set, empty or
+// unset it: `X=`, `env -u`, `unset`, `set X=`, `Remove-Item Env:`, `$env:`), is denied. That keeps
+// delegation one-way even when the model edits its own command line. Matched on the raw text, in
+// any case, like the rest of this guard a filter rather than a sandbox.
+const DELEGATION = /delegate-(backend|core)|DOTAI_DELEGATE_CALLER/i
+function delegatedTry(command, env) {
+  if (env?.DOTAI_DELEGATE_CALLER === undefined || !DELEGATION.test(String(command ?? ''))) return null
+  return { decision: 'deny', reason: 'shell guard: a delegated job cannot start delegations (pack 0050). Do the task yourself, or report back to the primary.' }
+}
+
 const NO_RETRY = 'Agents do not read secrets: do not retry with another reader or tool; if the user needs it, they run it themselves.'
 
 // harness: 'claudecode' | 'opencode' | 'antigravity' (every harness gets the same checks; the
 // argument stays for the output format). Returns null or { decision, reason }.
-export function decide(command, { harness = 'claudecode', cwd = process.cwd(), root = null, home = homedir(), denyPatterns = [] } = {}) {
+export function decide(command, { harness = 'claudecode', cwd = process.cwd(), root = null, home = homedir(), denyPatterns = [], env = {} } = {}) {
+  const delegated = delegatedTry(command, env)
+  if (delegated) return delegated
   const cmds = simpleCommands(command)
   if (!cmds.length) return null
   const match = compilePatterns(denyPatterns, { home })
@@ -349,11 +365,12 @@ export function decide(command, { harness = 'claudecode', cwd = process.cwd(), r
 async function main() {
   const parsed = parsePayload(await readStdin())
   const harness = harnessArg() ?? parsed.harness
-  let decision = null
-  try {
+  // The delegated check needs no deny list, so a failing one never skips it.
+  let decision = delegatedTry(parsed.command, process.env)
+  if (!decision) try {
     const cwd = parsed.cwd
     const { lines, root } = denyMatcher(cwd)
-    decision = decide(parsed.command, { harness, cwd, root, denyPatterns: lines })
+    decision = decide(parsed.command, { harness, cwd, root, denyPatterns: lines, env: process.env })
   } catch (e) {
     process.stderr.write(`shell guard: skipped (${e.message})\n`)
   }

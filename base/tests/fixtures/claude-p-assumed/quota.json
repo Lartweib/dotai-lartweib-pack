@@ -1,0 +1,1 @@
+{"type":"result","subtype":"success","is_error":true,"duration_ms":300,"num_turns":1,"result":"Claude AI usage limit reached|1763600000","session_id":"00000000-0000-4000-8000-000000000003","usage":{"input_tokens":0,"output_tokens":0}}

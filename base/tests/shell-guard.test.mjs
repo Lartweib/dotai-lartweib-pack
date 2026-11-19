@@ -202,6 +202,50 @@ test('a project deny list cannot undo a base pattern with !', () => {
   }
 })
 
+// Pack 0050: a delegated job (the hook inherits DOTAI_DELEGATE_CALLER from the launched harness,
+// even set to '') cannot start delegations, nor strip or change the variable that marks it.
+const DELEGATION_TRIES = [
+  'node "C:/Users/x/.dotai/tools/delegate-backend.mjs" run --from claudecode --model sonnet --effort low --spec s.md',
+  'node ~/.dotai/tools/delegate-backend.mjs check --model m --effort low',
+  'node -e "import(\'./delegate-core.mjs\').then(m => m.main([]))"',
+  'DOTAI_DELEGATE_CALLER= node x.mjs run',
+  'env -u DOTAI_DELEGATE_CALLER node x.mjs',
+  'unset DOTAI_DELEGATE_CALLER; node x.mjs',
+  'Remove-Item Env:DOTAI_DELEGATE_CALLER; node x.mjs',
+  "$env:DOTAI_DELEGATE_CALLER = ''; node x.mjs",
+  'set DOTAI_DELEGATE_CALLER= & node x.mjs',
+  'export dotai_delegate_caller=claudecode',
+]
+
+test('a delegated job cannot start delegations or strip its caller marker (0050)', () => {
+  for (const env of [{ DOTAI_DELEGATE_CALLER: 'agy' }, { DOTAI_DELEGATE_CALLER: '' }]) {
+    for (const cmd of DELEGATION_TRIES) {
+      const r = decide(cmd, { cwd: ROOT, root: ROOT, home: HOME, denyPatterns: DENY, env })
+      assert.equal(r?.decision, 'deny', `${JSON.stringify(env)} ${cmd}`)
+      assert.match(r.reason, /delegated job cannot start delegations \(pack 0050\)/)
+    }
+    assert.equal(decide('git status', { cwd: ROOT, root: ROOT, home: HOME, denyPatterns: DENY, env }), null, 'other commands pass')
+  }
+  for (const cmd of DELEGATION_TRIES) assert.equal(decide(cmd, { cwd: ROOT, root: ROOT, home: HOME, denyPatterns: DENY, env: {} }), null, `not delegated: ${cmd}`)
+})
+
+test('the hook reads the delegated marker from its own environment', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'guard delegated '))
+  try {
+    const payload = { tool_name: 'Bash', tool_input: { command: DELEGATION_TRIES[0] }, cwd: dir }
+    const r = runHook(payload, 'claudecode', { DOTAI_DELEGATE_CALLER: '' })
+    assert.equal(r.json.hookSpecificOutput.permissionDecision, 'deny')
+    const agy = runHook({ toolCall: { name: 'run_command', args: { CommandLine: DELEGATION_TRIES[3], Cwd: dir } } }, 'antigravity', { DOTAI_DELEGATE_CALLER: 'agy' })
+    assert.equal(agy.json.decision, 'deny')
+    const env = { ...process.env }
+    delete env.DOTAI_DELEGATE_CALLER
+    const free = spawnSync(process.execPath, [GUARD, 'claudecode'], { input: JSON.stringify(payload), encoding: 'utf8', env: { ...env, USERPROFILE: HOME, HOME, CLAUDE_PROJECT_DIR: '' } })
+    assert.equal(free.stdout, '', 'the primary may run delegate-backend')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('a broken payload never blocks', () => {
   const r = spawnSync(process.execPath, [GUARD, 'claudecode'], { input: 'not json', encoding: 'utf8' })
   assert.equal(r.status, 0)

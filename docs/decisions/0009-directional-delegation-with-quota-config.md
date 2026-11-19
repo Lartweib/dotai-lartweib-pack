@@ -45,3 +45,7 @@ OpenCode stays the optional harness for API credits. Pi (`@earendil-works/pi-cod
 ## Update 2026-11-19: OpenCode is a compatible preview harness
 
 Engine decision [dotai 0047](../../../dotai/docs/decisions/0047-harness-selection-and-preview-harnesses.md) removed `optional-harnesses`: `harnesses` now lists the harnesses a pack is compatible with, and `requires` those an install cannot do without. `dotai.yaml` lists all three as compatible and requires Claude Code and agy, as `harnesses` did before; OpenCode is compatible and never required. The engine marks OpenCode as a preview, so an install manages it only when `--harness` or the saved choice names it. That keeps the role above: optional, for API credits.
+
+## Update 2026-11-19: direction as configuration
+
+[0050](0050-delegation-direction-as-user-configuration.md) (accepted) makes the direction a user setting, `primary` in `delegate.yaml` (`claudecode` by default, or `agy`), so agy may be the primary and Claude Code the secondary. The guarantees above stand in both directions: one-way delegation and no cycles. When the secondary is out of quota or fails, the primary does the task itself on the model the cost policy fits, or defers; it never moves on by itself. The agy -> agy route (gemini-* only) is dropped: delegation only crosses harnesses, and each harness has its own subagents. OpenCode stays a target only, and `requires` is `[]`.

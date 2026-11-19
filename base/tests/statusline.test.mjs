@@ -86,6 +86,23 @@ const run = (args, input, h, extra = {}) =>
     env: { ...process.env, USERPROFILE: h, HOME: h, NO_COLOR: '1', ...extra },
   })
 
+// Pack 0050: the primary harness comes first; `primary: agy` in delegate.yaml puts agy's two rows on top.
+test('the primary comes first: agy rows on top when delegate.yaml names agy', () => {
+  const lines = render({ cc: fromClaude(ccInput, NOW), agy: fromAgy(agyInput, NOW), now: NOW, primary: 'agy' }).split('\n').map(plain)
+  assert.deepEqual(lines.map(l => l.split(/\s{2,}/)[0]), ['agy', 'agy 3p', 'CC'])
+  const h = mkdtempSync(join(tmpdir(), 'status primary '))
+  try {
+    const pack = join(h, 'pack home')
+    mkdirSync(pack, { recursive: true })
+    const r = () => run(['antigravity'], agyInput, h, { DOTAI_DELEGATE_HOME: pack }).stdout.split('\n')[0]
+    assert.match(r(), /^CC/, 'default primary: Claude Code')
+    writeFileSync(join(pack, 'delegate.yaml'), 'delegate:\n  primary: agy\n')
+    assert.match(r(), /^agy\s/)
+  } finally {
+    rmSync(h, { recursive: true, force: true })
+  }
+})
+
 test('the Claude Code snapshot lives in CLAUDE_CONFIG_DIR when set, for both harnesses', () => {
   const h = home()
   try {

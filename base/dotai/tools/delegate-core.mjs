@@ -1,8 +1,8 @@
-// The delegate contract shared by both variants (pack 0009, 0019, 0022, 0030, 0034): the
+// The delegate contract shared by both variants (pack 0009, 0019, 0022, 0030, 0034, 0050): the
 // caller->target route, the model/effort pair, pool choice from the quota and its caps, the
 // launch, the capped launch log and the one-line result. A base tool at user scope (0034,
 // update 2026-11-03): each variant's delegate-backend.mjs imports it from the user tools
-// directory and adds only how agy is launched; the base statusline and agent guard read and
+// directory and adds only how the target is launched; the base statusline and agent guard read and
 // write the same launch log. A library, not a command, so it ships no .sh/.ps1 wrapper. No
 // dependencies; the hook lib sits next to it in the same layer, in the pack source and installed.
 import {
@@ -26,13 +26,23 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { EFFORTS, cliInvocation, denyMatcher, findOnPath, isInside, packHome, projectRootOf, readSection, runCapped } from './hook-lib.mjs'
 
 export { EFFORTS, PACK, findOnPath, packHome } from './hook-lib.mjs'
-export const TARGETS = ['agy', 'opencode']
+export const TARGETS = ['agy', 'claudecode', 'opencode']
 export const CALLERS = ['claudecode', 'agy', 'opencode']
+// The harnesses that may be the primary (0050): the only one that delegates, to the other one
+// (the secondary) or to OpenCode. OpenCode is a target only.
+export const PRIMARIES = ['claudecode', 'agy']
+const NAMES = { claudecode: 'Claude Code', agy: 'agy', opencode: 'OpenCode' }
+const EXE = { claudecode: 'claude', agy: 'agy', opencode: 'opencode' }
+const STATE_ID = { claudecode: 'claudecode', agy: 'antigravity-cli' }
+export const secondaryOf = primary => (primary === 'agy' ? 'claudecode' : 'agy')
 export const DEFAULTS = Object.freeze({
+  primary: 'claudecode',
   gemini5h: 85, // % of the 5 h window at which a pool counts as over its threshold
   gemini7d: 90,
   thirdParty5h: 85,
   thirdParty7d: 90,
+  claude5h: 85, // Claude Code's own quota, when it is the secondary
+  claude7d: 90,
   staleMinutes: 15, // an older rate_limits.json is unknown, and unknown counts as available
   exhaustedMinutes: 60, // how long a quota error keeps a pool out
   timeoutMin: 30,
@@ -73,29 +83,74 @@ export function parseArgs(argv) {
 }
 
 // User-scope configuration (0034): <pack home>/delegate.yaml, section `delegate:`, edited by
-// hand only, never from the chat (0019). A bad value keeps its default, with a warning.
+// hand only, never from the chat (0019). A bad threshold or mode keeps its default, with a warning.
+// Fails closed (0050): a file that exists but cannot be read or parsed, or an unknown `primary`,
+// is `error`, and run and check refuse; a missing file is the defaults.
 export function loadConfig(dir) {
   const file = join(dir, 'delegate.yaml')
   let raw = {}
-  try {
-    if (existsSync(file)) raw = readSection(readFileSync(file, 'utf8'), 'delegate')
-  } catch {}
+  let error = null
+  if (existsSync(file)) {
+    try {
+      const text = readFileSync(file, 'utf8')
+      const bad = unparsedLine(text, 'delegate')
+      if (bad) error = `cannot parse ${file}: "${bad.trim().slice(0, 60)}" is not a section or a key: value line`
+      else raw = readSection(text, 'delegate')
+    } catch (e) {
+      error = `cannot read ${file} (${e.code || e.message})`
+    }
+  }
   const values = { ...DEFAULTS }
   const warnings = []
+  const explicit = []
+  const choices = { primary: PRIMARIES, agyMode: AGY_MODES }
   for (const [key, fallback] of Object.entries(DEFAULTS)) {
     const v = raw[key]
     if (v === undefined || v === '') continue
-    const ok = typeof fallback === 'number' ? typeof v === 'number' && Number.isFinite(v) && v > 0 : AGY_MODES.includes(v)
-    if (ok) values[key] = v
+    const ok = typeof fallback === 'number' ? typeof v === 'number' && Number.isFinite(v) && v > 0 : choices[key].includes(v)
+    if (ok) {
+      values[key] = v
+      explicit.push(key)
+    } else if (key === 'primary') error ??= `delegate.primary in ${file} is "${v}", not ${PRIMARIES.join(' or ')}`
     else warnings.push(`delegate.${key} in ${file} is "${v}"; using ${fallback}.`)
   }
-  return { values, warnings, file }
+  return { values, warnings, file, explicit, error }
+}
+
+// The first line readSection would skip silently: at the top level anything but a `name:` header,
+// inside `section` anything but `key: value`. Comments and blank lines are fine.
+function unparsedLine(text, section) {
+  let within = false
+  for (const line of String(text).split(/\r?\n/)) {
+    if (/^\s*(#|$)/.test(line)) continue
+    const top = /^([A-Za-z_][\w-]*):\s*(#.*)?$/.exec(line)
+    if (top) within = top[1] === section
+    else if (/^\S/.test(line)) return line
+    else if (within && !/^\s+[A-Za-z_][\w-]*:(\s|$)/.test(line)) return line
+  }
+  return null
+}
+
+// A primary set in delegate.yaml must be installed (0050): its CLI on PATH and, when an install
+// state lists harnesses, among them. Otherwise delegation is off, with a warning, not a failure.
+export function primaryProblem(primary, { env = process.env, home = homedir() } = {}) {
+  let listed = true
+  try {
+    const s = JSON.parse(readFileSync(join(home, '.dotai', 'state.json'), 'utf8'))
+    if (Array.isArray(s?.harnesses)) listed = s.harnesses.includes(STATE_ID[primary])
+  } catch {}
+  if (listed && findOnPath(EXE[primary], env)) return null
+  return `delegate.primary ${primary} is not installed, so delegation is off; set primary to the harness you use, or install ${NAMES[primary]}`
 }
 
 // ---------- policy
 
+// A delegated child: DOTAI_DELEGATE_CALLER is present, even emptied (0050), so a child that blanks
+// it still cannot pass for the primary with --from. Unsetting it is what the shell guard denies.
+export const isDelegated = (env = process.env) => env.DOTAI_DELEGATE_CALLER !== undefined
+
 export function detectCaller(env = process.env) {
-  if (env.DOTAI_DELEGATE_CALLER) return CALLERS.includes(env.DOTAI_DELEGATE_CALLER) ? env.DOTAI_DELEGATE_CALLER : 'unknown'
+  if (isDelegated(env)) return CALLERS.includes(env.DOTAI_DELEGATE_CALLER) ? env.DOTAI_DELEGATE_CALLER : 'unknown'
   if (env.CLAUDECODE === '1') return 'claudecode'
   return 'unknown'
 }
@@ -111,8 +166,12 @@ export function resolveMode(flag, env = process.env) {
 const isGemini = m => /^gemini-/i.test(m)
 const isClaude = m => /claude|anthropic/i.test(m)
 
+// Claude Code's --model takes an alias or a full id (claude --help, 2.1.328).
+const CLAUDE_MODEL = /^(sonnet|opus|haiku|fable|opusplan)(\[1m\])?$|^claude-[\w.-]+(\[1m\])?$/i
+
 export function poolOf(target, model) {
   if (target === 'opencode') return 'opencode'
+  if (target === 'claudecode') return 'claude'
   return isGemini(model) ? 'gemini' : 'third-party'
 }
 
@@ -121,7 +180,8 @@ const CRITERION = 'Declare both: --model and --effort (low, medium, high, xhigh,
 // The model/effort pair (0022, 0030). agy: a Gemini id may carry its level (gemini-3.8-flash-low),
 // which must match the effort, and goes as --effort; third-party ids (claude-*, gpt-*) carry their
 // own level and agy rejects --effort for them, so they take "default". OpenCode: provider/model,
-// effort as the #variant, never a Claude model (0009).
+// effort as the #variant, never a Claude model (0009). Claude Code (an agy primary's secondary,
+// 0050): Claude models only, effort as --effort (low..max), "default" leaves it to Claude Code.
 export function checkPair(target, model, effort) {
   if (!model) return { ok: false, reason: `no model. ${CRITERION}` }
   // A trailing backslash would escape the closing quote of a cmd.exe or C-runtime argument, and a
@@ -134,7 +194,11 @@ export function checkPair(target, model, effort) {
     if (isClaude(model)) return { ok: false, reason: 'OpenCode never runs Claude models through the API (0009).' }
     return { ok: true, effortFlag: effort === 'default' ? null : effort }
   }
-  if (target !== 'agy') return { ok: false, reason: `unknown target "${target}"; use agy or opencode.` }
+  if (target === 'claudecode') {
+    if (!CLAUDE_MODEL.test(model)) return { ok: false, reason: `Claude Code runs Claude models only (an alias such as sonnet, or claude-*), not "${model}".` }
+    return { ok: true, effortFlag: effort === 'default' ? null : effort }
+  }
+  if (target !== 'agy') return { ok: false, reason: `unknown target "${target}"; use agy, claudecode or opencode.` }
   if (isGemini(model)) {
     const level = /-(low|medium|high|xhigh|max)$/i.exec(model)?.[1]?.toLowerCase()
     if (effort === 'default') return { ok: false, reason: `Gemini models take an explicit effort${level ? ` (${level} for ${model})` : ''}.` }
@@ -145,18 +209,17 @@ export function checkPair(target, model, effort) {
   return { ok: true, effortFlag: null }
 }
 
-// Directional routes (0009, 0043): nobody delegates to Claude Code; only Claude Code may use
-// agy's third-party pool (Claude and GPT inside agy), so an agy hub, OpenCode or an unknown caller
-// is pinned to gemini-* and never spends Claude's quota.
-export function checkRoute(from, target, model) {
-  if (target === 'claudecode') return { ok: false, reason: 'delegate never targets Claude Code; use a pack subagent instead.' }
-  if (target === 'opencode') {
-    if (from === 'opencode') return { ok: false, reason: 'OpenCode does not delegate to itself.' }
-    return { ok: true }
+// One-way routes (0009, 0050): only the primary delegates, and only to another harness (the
+// secondary, or OpenCode). A delegated child is never the primary, so nesting and cycles are
+// refused, and the primary's quota is never spent on the secondary's behalf. Within one harness
+// the pack's subagents do the job. An agy primary is known only by --from agy (agy sets no marker).
+export function checkRoute(from, target, primary = DEFAULTS.primary) {
+  if (from === 'opencode') return { ok: false, reason: 'OpenCode is a target only, never a caller (0050).' }
+  if (from !== primary) {
+    const hint = from === 'unknown' ? `; the caller is unknown: run it from ${NAMES[primary]}${primary === 'agy' ? ' with --from agy' : ''}` : ''
+    return { ok: false, reason: `only the primary (${primary}, delegate.yaml) delegates, not ${from} (0050)${hint}.` }
   }
-  if (from !== 'claudecode' && !isGemini(model)) {
-    return { ok: false, reason: `a ${from} caller uses only gemini-* models in agy, never the third-party pool (0009).` }
-  }
+  if (from === target) return { ok: false, reason: `${NAMES[from]} does not delegate to itself; use its own subagents, which the pack ships.` }
   return { ok: true }
 }
 
@@ -170,12 +233,8 @@ const toMs = ts => {
 }
 const pct = v => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
-// agy's quota, written by the statusline of an interactive agy session only (0022): the newest
-// of the normal and the isolated install. Stale or missing is unknown.
-export function readQuota({ env = process.env, home = homedir(), now = Date.now(), staleMinutes = DEFAULTS.staleMinutes } = {}) {
-  const files = env.DOTAI_AGY_RATE_LIMITS
-    ? [env.DOTAI_AGY_RATE_LIMITS]
-    : [join(home, '.gemini', 'antigravity-cli', 'rate_limits.json'), join(home, '.dotai', 'isolated', 'gemini', 'antigravity-cli', 'rate_limits.json')]
+// The newest readable snapshot of `files`, and whether it is fresh.
+function newest(files, now, staleMinutes) {
   let best = null
   for (const f of files) {
     try {
@@ -184,16 +243,29 @@ export function readQuota({ env = process.env, home = homedir(), now = Date.now(
       if (j && typeof j === 'object' && (!best || (ts ?? 0) > (best.ts ?? 0))) best = { j, ts, f }
     } catch {}
   }
-  const blank = { h5: null, d7: null, fresh: false }
-  if (!best) return { gemini: { ...blank }, 'third-party': { ...blank }, source: null }
+  if (!best) return null
   const age = best.ts === null ? Infinity : now - best.ts
-  const fresh = age <= staleMinutes * 60000 && age >= -5 * 60000
-  const { j } = best
+  return { ...best, fresh: age <= staleMinutes * 60000 && age >= -5 * 60000 }
+}
+
+// agy's quota, written by the statusline of an interactive agy session only (0022): the newest
+// of the normal and the isolated install. Claude Code's (0050), written by its statusline, also
+// interactive sessions only, so mostly stale under an agy primary: the newest of CLAUDE_CONFIG_DIR,
+// ~/.claude and the isolated install. Stale or missing is unknown.
+export function readQuota({ env = process.env, home = homedir(), now = Date.now(), staleMinutes = DEFAULTS.staleMinutes } = {}) {
+  const agyFiles = env.DOTAI_AGY_RATE_LIMITS
+    ? [env.DOTAI_AGY_RATE_LIMITS]
+    : [join(home, '.gemini', 'antigravity-cli', 'rate_limits.json'), join(home, '.dotai', 'isolated', 'gemini', 'antigravity-cli', 'rate_limits.json')]
+  const claudeDirs = [env.CLAUDE_CONFIG_DIR, join(home, '.claude'), join(home, '.dotai', 'isolated', 'claude')].filter(Boolean)
+  const a = newest(agyFiles, now, staleMinutes)
+  const c = newest(claudeDirs.map(d => join(d, 'rate_limits.json')), now, staleMinutes)
+  const blank = { h5: null, d7: null, fresh: false }
   return {
-    gemini: { h5: pct(j.gemini_5h_pct), d7: pct(j.gemini_7d_pct), fresh },
-    'third-party': { h5: pct(j.p3_5h_pct), d7: pct(j.p3_7d_pct), fresh },
-    source: best.f,
-    ts: best.ts,
+    gemini: a ? { h5: pct(a.j.gemini_5h_pct), d7: pct(a.j.gemini_7d_pct), fresh: a.fresh } : { ...blank },
+    'third-party': a ? { h5: pct(a.j.p3_5h_pct), d7: pct(a.j.p3_7d_pct), fresh: a.fresh } : { ...blank },
+    claude: c ? { h5: pct(c.j.five_hour_pct), d7: pct(c.j.seven_day_pct), fresh: c.fresh } : { ...blank },
+    source: a?.f ?? null,
+    ts: a?.ts,
   }
 }
 
@@ -226,7 +298,7 @@ export function markExhausted(file, pool, minutes, now = Date.now()) {
   }
 }
 
-const LIMITS = { gemini: ['gemini5h', 'gemini7d'], 'third-party': ['thirdParty5h', 'thirdParty7d'] }
+const LIMITS = { gemini: ['gemini5h', 'gemini7d'], 'third-party': ['thirdParty5h', 'thirdParty7d'], claude: ['claude5h', 'claude7d'] }
 
 function verdict(pool, quota, exhausted, cfg, now) {
   if (pool === 'opencode') return { state: 'ok' }
@@ -240,8 +312,9 @@ function verdict(pool, quota, exhausted, cfg, now) {
   return { state: 'ok' }
 }
 
-const fallbackAdvice = from =>
-  from === 'claudecode' ? 'Run on Sonnet or Haiku, or defer.' : 'Defer and notify the user; never fall back to Claude (0009).'
+// Only the primary gets here (checkRoute). The work never moves on by itself: the primary does it
+// on the model its cost policy fits the task, or defers and tells the user (0009, 0050).
+const fallbackAdvice = primary => `Do it yourself in ${NAMES[primary] ?? primary} on the model the cost policy fits the task, or defer and tell the user.`
 
 export function parseAlt(alt) {
   const i = alt.lastIndexOf(':')
@@ -250,18 +323,18 @@ export function parseAlt(alt) {
 
 // The whole pre-launch decision: reject, launch (maybe on the alternative), ask or defer.
 export function decide({ job, quota, exhausted = {}, cfg = DEFAULTS, mode = 'interactive', overCap = false, now = Date.now() }) {
-  const target = job.target ?? 'agy'
+  const primary = cfg.primary ?? DEFAULTS.primary
+  const target = job.target ?? secondaryOf(primary)
   const from = job.from ?? 'unknown'
+  const route = checkRoute(from, target, primary)
+  if (!route.ok) return { action: 'reject', reason: route.reason }
   const pair = checkPair(target, job.model, job.effort)
   if (!pair.ok) return { action: 'reject', reason: pair.reason }
-  const route = checkRoute(from, target, job.model)
-  if (!route.ok) return { action: 'reject', reason: route.reason }
   let alt = null
   if (job.alt) {
     alt = parseAlt(job.alt)
     const p = checkPair(target, alt.model, alt.effort)
-    const r = p.ok ? checkRoute(from, target, alt.model) : p
-    if (!r.ok) return { action: 'reject', reason: `--alt ${job.alt}: ${r.reason}` }
+    if (!p.ok) return { action: 'reject', reason: `--alt ${job.alt}: ${p.reason}` }
     alt.effortFlag = p.effortFlag
   }
   const pool = poolOf(target, job.model)
@@ -315,6 +388,38 @@ export function parseAgyJson(text) {
   }
 }
 
+// `claude -p --output-format json` prints one result object: {type: "result", subtype, is_error,
+// result, usage: {input_tokens, output_tokens, cache_*}, ...}. ASSUMED from the documented shape,
+// not recorded (0050, trial pending; base/tests/fixtures/claude-p-assumed), so it is read
+// defensively: noise before the JSON, one object per line, or an array of messages whose `result`
+// entry counts. is_error wins over subtype; an error's text is in `result` (or `error`).
+export function parseClaudeJson(text) {
+  const s = String(text ?? '').trim()
+  const tries = [s, s.slice(Math.max(0, s.indexOf('{'))), ...s.split(/\r?\n/).reverse()]
+  let j = null
+  for (const candidate of tries) {
+    try {
+      j = JSON.parse(candidate)
+      if (j && typeof j === 'object') break
+    } catch {}
+    j = null
+  }
+  if (Array.isArray(j)) j = j.filter(m => m && typeof m === 'object' && m.type === 'result').at(-1) ?? null
+  if (!j || typeof j !== 'object' || (j.type !== undefined && j.type !== 'result')) return { status: 'UNPARSED', error: s.slice(-300) || 'no output', inTok: 0, outTok: 0 }
+  const usage = j.usage && typeof j.usage === 'object' ? j.usage : {}
+  const failed = j.is_error === true || (typeof j.subtype === 'string' && j.subtype !== 'success')
+  const said = typeof j.result === 'string' ? j.result : ''
+  const error = j.error ? (typeof j.error === 'string' ? j.error : JSON.stringify(j.error)) : ''
+  return {
+    status: failed ? 'ERROR' : 'SUCCESS',
+    error: failed ? error || said || String(j.subtype ?? 'error') : '',
+    response: failed ? '' : said,
+    model: null, // the reply names no single model (aliases, background models), so none is checked
+    inTok: Number(usage.input_tokens) || 0,
+    outTok: Number(usage.output_tokens) || 0,
+  }
+}
+
 // OpenCode `run --format json` prints one event per line, {type, timestamp, sessionID, ...data}
 // (checked in the installed CLI, 2026-11-03): `text` events carry part.text, `step_start` opens
 // each step, `step_finish` carries part.tokens, `error` carries error. The reply is the text of the
@@ -363,9 +468,15 @@ export function parseOpenCodeJson(text, code, stderr = '') {
 // pool exhausted would keep it out for exhaustedMinutes. Stderr is read only when stdout held no
 // JSON; otherwise the JSON status is authoritative.
 // TODO(trial): confirm on the first real exhaustion; no real sample yet.
+// Claude Code (0050) words its plan limits differently: "Claude AI usage limit reached|<epoch>",
+// "You've hit your limit · resets 3pm", "5-hour limit reached", "Weekly limit reached".
+// TODO(trial): ASSUMED texts; no real sample, and no session was spent to get one.
 const QUOTA_TEXT = /out of quota|RESOURCE_EXHAUSTED|quota exceeded|exceeded (your |the )?quota/i
-export const isQuotaError = (r, stderr = '') =>
-  r.status !== 'SUCCESS' && (QUOTA_TEXT.test(r.error ?? '') || (r.status === 'UNPARSED' && QUOTA_TEXT.test(String(stderr))))
+const CLAUDE_QUOTA_TEXT = /usage limit reached|hit your (usage )?limit|(5-hour|weekly|session|opus) limit reached|out of (extra )?usage/i
+export const isQuotaError = (r, stderr = '', target = 'agy') => {
+  const re = target === 'claudecode' ? CLAUDE_QUOTA_TEXT : QUOTA_TEXT
+  return r.status !== 'SUCCESS' && (re.test(r.error ?? '') || (r.status === 'UNPARSED' && re.test(String(stderr))))
+}
 
 // ---------- processes
 
@@ -474,7 +585,7 @@ function launches(entries, now) {
   }
   for (const l of byId.values()) {
     if (l.done) l.state = l.status
-    else if (l.harness === 'claudecode' || !l.pid) l.state = 'launched'
+    else if (l.kind === 'subagent' || !l.pid) l.state = 'launched' // agent-guard entries: no pid to watch
     else l.state = alive(l.pid) && now - l.ts < 24 * 3600000 ? 'running' : 'lost'
   }
   return byId
@@ -507,7 +618,7 @@ export function renderTree(entries, now = Date.now(), { limit = 20 } = {}) {
 export function statusLine(entries, now = Date.now()) {
   const all = [...launches(entries, now).values()]
   const running = all.filter(l => l.state === 'running').length
-  const last = all.filter(l => l.done && l.harness !== 'claudecode').sort((a, b) => a.ts - b.ts).at(-1)
+  const last = all.filter(l => l.done && l.kind !== 'subagent').sort((a, b) => a.ts - b.ts).at(-1)
   return `delegate: ${running} running${last ? ` · last ${last.status} ${ago(now - last.ts)} ago` : ''}`
 }
 
@@ -517,7 +628,7 @@ export function quotaLine(q) {
     if (p.h5 === null && p.d7 === null) return `${name} ?`
     return `${name} ${p.h5 ?? '?'}%/${p.d7 ?? '?'}%${p.fresh ? '' : ' (stale)'}`
   }
-  return `quota (5 h/7 d): ${one('gemini')} · ${one('third-party')}`
+  return `quota (5 h/7 d): ${one('gemini')} · ${one('third-party')}${q.claude ? ` · ${one('claude')}` : ''}`
 }
 
 // ---------- jobs
@@ -618,7 +729,19 @@ export function openCodeIsolation(home = homedir()) {
     }
     env.OPENCODE_TEST_HOME = testHome
   }
-  return { env: { ...env, ...OPENCODE_FIXED }, standalone: true }
+  return { env: { ...env, ...OPENCODE_FIXED }, owned: OPENCODE_REMOVED, standalone: true }
+}
+
+// Where the delegated Claude Code reads its config (0050): `dotai run claudecode` points
+// CLAUDE_CONFIG_DIR at <home>/.dotai/isolated/claude in an isolated install, and a child never
+// sees that, so the launch reads the install state as for agy. Fails closed like agyIsolation.
+export function claudeIsolation(home = homedir()) {
+  const s = isolatedState(home, 'claudecode', 'Claude Code')
+  if (s.error) return { error: s.error }
+  if (!s.isolated) return { env: null }
+  const dir = join(home, '.dotai', 'isolated', 'claude')
+  if (!isDir(dir)) return { error: `the isolated Claude Code directory ${dir} (claude) is missing; run dotai install again` }
+  return { env: { CLAUDE_CONFIG_DIR: dir }, owned: ['CLAUDE_CONFIG_DIR'] }
 }
 
 // The child's environment: base without every variable the isolation owns (by name, and on Windows
@@ -626,7 +749,7 @@ export function openCodeIsolation(home = homedir()) {
 export function isolatedEnv(base, iso, platform = process.platform) {
   if (!iso?.env) return base
   const key = platform === 'win32' ? k => k.toUpperCase() : k => k
-  const removed = new Set(OPENCODE_REMOVED.map(key))
+  const removed = new Set((iso.owned ?? OPENCODE_REMOVED).map(key))
   const env = Object.fromEntries(Object.entries(base).filter(([k]) => !removed.has(key(k))))
   return { ...env, ...iso.env }
 }
@@ -635,7 +758,7 @@ export function isolatedEnv(base, iso, platform = process.platform) {
 // the ones to set, and the others the isolation owns, to clear. null without isolation.
 export function isolationVars(iso) {
   if (!iso?.env) return null
-  return { set: iso.env, unset: OPENCODE_REMOVED.filter(k => !(k in iso.env)) }
+  return { set: iso.env, unset: (iso.owned ?? OPENCODE_REMOVED).filter(k => !(k in iso.env)) }
 }
 
 // Auto-approval only for code jobs (0019): research and audit run agy in plan mode and OpenCode
@@ -649,6 +772,18 @@ export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research'
     // built-in plan agent denies edit (write, edit, patch); its shell is not restricted, so a
     // read-only job is read-only for the edit tools, and the shell guard still applies.
     return ['run', ...(standalone ? ['--standalone'] : []), '--model', d.effortFlag ? `${d.model}#${d.effortFlag}` : d.model, '--format', 'json', ...(readOnly ? ['--agent', 'plan'] : ['--auto']), prompt]
+  }
+  if (target === 'claudecode') {
+    // claude -p (flags from `claude --help`, 2.1.328; 0050). -p is a switch and the prompt the
+    // positional argument. Read-only kinds run in plan mode; code in acceptEdits with nothing
+    // left to prompt (a prompt is denied at once, never waited on), so the pack's permissions and
+    // hooks decide the rest; never bypassPermissions. --add-dir takes several values, so it goes last.
+    // TODO(trial): whether a code job's shell commands pass under acceptEdits in -p.
+    const args = ['-p', prompt, '--model', d.model, ...(d.effortFlag ? ['--effort', d.effortFlag] : []), '--output-format', 'json', '--no-session-persistence']
+    args.push('--permission-mode', readOnly ? 'plan' : 'acceptEdits', ...(readOnly ? [] : ['--permission-prompts', 'none']))
+    const rel = relative(cwd, jobDir)
+    if (rel.startsWith('..') || isAbsolute(rel)) args.push('--add-dir', jobDir)
+    return args
   }
   // First, in one argument, as dotai run passes it (agy needs the absolute path).
   const args = [...(geminiDir ? [`--gemini_dir=${geminiDir}`] : []), '-p', prompt, '--model', d.model]
@@ -667,13 +802,16 @@ function line(id, word, rest) {
 function makeCtx(env) {
   const home = homedir()
   const dir = packHome(env, home)
-  const { values, warnings } = loadConfig(dir)
+  const { values, warnings, explicit, error } = loadConfig(dir)
   for (const w of warnings) process.stderr.write(`delegate: ${w}\n`)
   return {
     env,
     home,
     dir,
     cfg: values,
+    // A delegate.yaml that fails closed, or a primary named there but not installed (0050): run and
+    // check refuse, with a warning; status and workers still work.
+    off: error ?? (explicit.includes('primary') ? primaryProblem(values.primary, { env, home }) : null),
     log: join(dir, 'launches.jsonl'),
     checks: join(dir, 'checks.jsonl'), // check and confirm entries, apart so they never evict launches
     quotaState: join(dir, 'quota-state.json'),
@@ -681,15 +819,15 @@ function makeCtx(env) {
 }
 
 // A delegation started by a delegated agent carries DOTAI_DELEGATE_CALLER (set by attempt); then
-// that is the caller, whatever --from or a job file claims, so a nested agy cannot borrow Claude
-// Code's routes (0009).
+// that is the caller, whatever --from or a job file claims, so a delegated child can never pass
+// for the primary (0009, 0050).
 function callerOf(claimed, env) {
-  return env.DOTAI_DELEGATE_CALLER ? detectCaller(env) : (claimed ?? detectCaller(env))
+  return isDelegated(env) ? detectCaller(env) : (claimed ?? detectCaller(env))
 }
 
-function jobFromFlags(f, env) {
+function jobFromFlags(f, env, primary = DEFAULTS.primary) {
   return {
-    target: f.to ?? 'agy',
+    target: f.to ?? secondaryOf(primary),
     from: callerOf(f.from, env),
     model: f.model,
     effort: f.effort,
@@ -798,7 +936,7 @@ async function attempt(job, d, where, opts, ctx, adapter) {
   const { cfg } = ctx
   const { id, jobDir, cwd, n } = where
   const target = job.target
-  const exe = findOnPath(target, ctx.env)
+  const exe = findOnPath(EXE[target] ?? target, ctx.env)
   const started = Date.now()
   const shown = `${target} ${d.model}/${d.effort}`
   appendLog(ctx.log, {
@@ -808,7 +946,7 @@ async function attempt(job, d, where, opts, ctx, adapter) {
   const end = (status, extra = {}) => appendLog(ctx.log, { id, event: 'end', ts: Date.now(), status, secs: Math.round((Date.now() - started) / 1000), ...extra }, cfg.logMax)
   if (!exe) {
     end('FAIL')
-    return { code: 1, text: line(id, 'FAIL', `${shown}: ${target} not found on PATH.`) }
+    return { code: 1, text: line(id, 'FAIL', `${shown}: ${EXE[target] ?? target} not found on PATH.`) }
   }
   const attemptDir = join(jobDir, `attempt-${n}`)
   const resultFile = join(jobDir, 'result.md')
@@ -820,19 +958,19 @@ async function attempt(job, d, where, opts, ctx, adapter) {
     end('FAIL')
     return { code: 1, text: line(id, 'FAIL', `${shown}: cannot prepare ${attemptDir} (${e.code || e.message}).`) }
   }
-  const iso = target === 'agy' ? agyIsolation(ctx.home) : openCodeIsolation(ctx.home)
+  const iso = { agy: agyIsolation, claudecode: claudeIsolation, opencode: openCodeIsolation }[target](ctx.home)
   if (iso.error) {
     end('FAIL')
     return { code: 1, text: line(id, 'FAIL', `${shown}: ${iso.error}.`) }
   }
   const prompt = buildPrompt(jobDir, job.kind)
   const args = buildArgs(target, d, prompt, cfg, jobDir, cwd, job.kind, iso)
-  // The child knows who called it and under which launch, so a nested delegation from agy is
-  // restricted (checkRoute) and shows under its parent in the tree.
+  // The child knows who called it and under which launch, so a nested delegation is refused
+  // (the child is never the primary, checkRoute) and shows under its parent in the tree.
   const env = { ...isolatedEnv(ctx.env, iso), DOTAI_DELEGATE_CALLER: target, DOTAI_DELEGATE_PARENT: id }
   let r
   try {
-    r = await adapter.launch({ exe, target, args, cwd, env, isolation: isolationVars(iso), jobDir, attemptDir, id, title: job.title || `delegate ${id}`, timeoutMs: cfg.timeoutMin * 60000 }, ctx)
+    r = await adapter.launch({ exe, cli: EXE[target], target, args, cwd, env, isolation: isolationVars(iso), jobDir, attemptDir, id, title: job.title || `delegate ${id}`, timeoutMs: cfg.timeoutMin * 60000 }, ctx)
   } catch (e) {
     end('FAIL')
     return { code: 1, text: line(id, 'FAIL', `${shown}: ${e.message}`) }
@@ -852,8 +990,8 @@ async function attempt(job, d, where, opts, ctx, adapter) {
   const lastLine = t => t.trim().split(/\r?\n/).at(-1) ?? ''
   const parsed = target === 'agy'
     ? parseAgyJson(r.stdout)
-    : parseOpenCodeJson(r.stdout, r.code, stderr)
-  if (target === 'agy' && isQuotaError(parsed, stderr)) {
+    : target === 'claudecode' ? parseClaudeJson(r.stdout) : parseOpenCodeJson(r.stdout, r.code, stderr)
+  if (target !== 'opencode' && isQuotaError(parsed, stderr, target)) {
     markExhausted(ctx.quotaState, d.pool, cfg.exhaustedMinutes)
     end('QUOTA')
     const said = parsed.status === 'UNPARSED' && stderr.trim() ? lastLine(stderr) : parsed.error
@@ -882,11 +1020,11 @@ async function attempt(job, d, where, opts, ctx, adapter) {
   return { code: 0, text: line(id, 'OK', `${shown} ${secs}s${tok}${model}${via} result=${resultFile}`) }
 }
 
-function readJobFile(file, flags, env) {
+function readJobFile(file, flags, env, primary) {
   const j = JSON.parse(readFileSync(file, 'utf8'))
   const base = dirname(resolve(file))
   return {
-    ...jobFromFlags({ from: flags.from, ...j, to: j.to ?? flags.to }, env),
+    ...jobFromFlags({ from: flags.from, ...j, to: j.to ?? flags.to }, env, primary),
     spec: j.spec ? resolve(base, j.spec) : undefined,
   }
 }
@@ -908,9 +1046,9 @@ async function pool(items, n, fn) {
 
 function help(adapter) {
   return [
-    `delegate-backend (${adapter.variant}): hand research, audits or bulk mechanical work to agy, or OpenCode, within quota.`,
+    `delegate-backend (${adapter.variant}): hand research, audits or bulk mechanical work to the other harness (agy or Claude Code), or OpenCode, within quota.`,
     '  run --model M --effort E (--spec FILE | --prompt TEXT) [--title T] [--kind research|audit|code]',
-    '      [--alt M2:E2] [--to agy|opencode] [--from claudecode|agy|opencode] [--mode interactive|autonomous] [--over-cap]',
+    '      [--alt M2:E2] [--to agy|claudecode|opencode] [--from claudecode|agy] [--mode interactive|autonomous] [--over-cap]',
     adapter.refuseJobs ? null : '  run --jobs JOB.json...   several jobs in parallel, one job file each',
     '  check --model M --effort E [...]   validate the pair, route and quota; no launch',
     '  status [--line] [--watch]   launch tree, running jobs and quota',
@@ -959,6 +1097,11 @@ export async function main(argv, adapter, env = process.env) {
     return 2
   }
   const opts = { mode, overCap: !!a.flags['over-cap'] }
+  if (ctx.off && (a.cmd === 'run' || a.cmd === 'check')) {
+    process.stderr.write(`delegate: ${ctx.off}.\n`)
+    process.stdout.write(`delegate REJECT ${ctx.off}.\n`)
+    return 2
+  }
   switch (a.cmd) {
     case 'run': {
       pruneJobs(jobsDirOf(process.cwd(), ctx))
@@ -969,7 +1112,7 @@ export async function main(argv, adapter, env = process.env) {
         }
         const results = await pool(a.jobs, ctx.cfg.maxParallel, async f => {
           try {
-            return await runJob(readJobFile(f, a.flags, env), opts, ctx, adapter)
+            return await runJob(readJobFile(f, a.flags, env, ctx.cfg.primary), opts, ctx, adapter)
           } catch (e) {
             return { code: 2, text: line(null, 'REJECT', `job file ${f}: ${e.message}`) }
           }
@@ -977,12 +1120,12 @@ export async function main(argv, adapter, env = process.env) {
         process.stdout.write(results.map(r => r.text).join('\n') + '\n')
         return Math.max(...results.map(r => r.code))
       }
-      const r = await runJob(jobFromFlags(a.flags, env), opts, ctx, adapter)
+      const r = await runJob(jobFromFlags(a.flags, env, ctx.cfg.primary), opts, ctx, adapter)
       process.stdout.write(r.text + '\n')
       return r.code
     }
     case 'check': {
-      const job = jobFromFlags(a.flags, env)
+      const job = jobFromFlags(a.flags, env, ctx.cfg.primary)
       const now = Date.now()
       const d = decide({ job, quota: readQuota({ env, home: ctx.home, now, staleMinutes: ctx.cfg.staleMinutes }), exhausted: loadExhausted(ctx.quotaState, now), cfg: ctx.cfg, mode, overCap: opts.overCap, now })
       const codes = { reject: [2, 'REJECT'], defer: [3, 'DEFER'], ask: [4, 'ASK'] }

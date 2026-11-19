@@ -39,8 +39,8 @@ flowchart TB
   DOTAI -- "apply" --> AGY
   DOTAI -- "apply" --> OC
 
-  CC -- "delegate: Gemini or third-party pool" --> AGY
-  AGY -- "as hub: never delegates" --x CC
+  CC -- "delegate (primary: claudecode, default)" --> AGY
+  AGY -. "delegate (primary: agy)" .-> CC
   OC -. "only free models and third-party credits" .- OC_NOTE["Never Claude via API"]
 
   ORCA -. "optional agent visibility" .- CC
@@ -50,20 +50,20 @@ flowchart TB
   AGY --- ENG
 ```
 
-Directional routing ([0009](decisions/0009-directional-delegation-with-quota-config.md)):
+One-way routing ([0009](decisions/0009-directional-delegation-with-quota-config.md), [0050](decisions/0050-delegation-direction-as-user-configuration.md)): `primary` in the user's `delegate.yaml` (`claudecode`, the default, or `agy`) is the only harness that delegates, to the other one (the secondary) or to OpenCode. The secondary and OpenCode never delegate, and no harness delegates to itself (its subagents do that work). An agy primary passes `--from agy`.
 
 ```mermaid
 flowchart LR
-  CC["Claude Code hub"] -- "delegate" --> POOLS
-  subgraph POOLS["agy: two quota pools"]
-    G["Gemini pool"]
-    T["Third-party pool"]
+  P["Primary (claudecode or agy)"] -- "delegate" --> S
+  subgraph S["Secondary"]
+    G["agy: Gemini pool"]
+    T["agy: third-party pool"]
+    C["Claude Code: claude pool"]
   end
-  G -- "over the threshold" --> T
-  T -- "over the threshold" --> DEFER["Defer and notify"]
-  CC -- "both pools over the threshold" --> LOCAL["Run on Sonnet or Haiku, or defer"]
-  AGYHUB["agy hub"] -- "never" --x CLAUDE["Claude, neither via third parties nor via OpenCode with API"]
-  AGYHUB -- "exhaustion" --> DEFER
+  G -- "over the threshold, with --alt" --> T
+  S -- "over the threshold or exhausted" --> SELF["Primary does it itself on the model the cost policy fits, or defers and tells the user"]
+  S -- "never" --x P
+  P -. "occasional" .-> OC["OpenCode: target only, never Claude models"]
 ```
 
 ## 2. Source levels
@@ -83,9 +83,11 @@ Resolved:
 
 ## 3. Runtime
 
-### 3.a `delegate` from Claude Code to agy
+### 3.a `delegate` from the primary to the secondary
 
-Validated in [0022](decisions/0022-delegate-visible-orca-backend.md). The reference pack declares two variants ([0028](decisions/0028-standalone-and-orca-variants.md)): `standalone`, where its own backend launches; and `orca`, where Orca launches, waits and closes (an Orca terminal running `agy -p` for a single delegation, [0031](decisions/0031-orca-single-delegation-terminal-agy-p.md); `orca orchestration` for several workers) and the pack only adds its contract. The engine knows nothing about Orca; it only applies the chosen variant as a layer. Packaging ([0034](decisions/0034-delegate-packaging-base-tool-variant-runners.md), engine answers in its 2026-11-01 update): one backend-agnostic `delegate` skill and one shared contract tool in the base, `delegate-core.mjs` (a library the backends import, with no wrapper; 0034 update 2026-11-03), and one backend tool per variant named `delegate-backend` (there is no `runners/` directory). In both variants, the pack's base tool validates the model/effort pair beforehand and confirms the actual model afterwards, because Orca's `launch.effective` is not evidence. The current runner's "use Claude" rejection is inverted per [0009](decisions/0009-directional-delegation-with-quota-config.md): when agy is the hub, exhausting the pools defers and notifies.
+Written for the default direction, Claude Code to agy. With `primary: agy` ([0050](decisions/0050-delegation-direction-as-user-configuration.md)) the same contract launches `claude -p --output-format json` (plan mode for research and audit, `acceptEdits` with no prompts for code, `CLAUDE_CONFIG_DIR=<home>/.dotai/isolated/claude` in an isolated install), reads Claude Code's quota from its statusline's `rate_limits.json` (mostly stale, so unknown), and in `orca` types `claude -p` into the terminal.
+
+Validated in [0022](decisions/0022-delegate-visible-orca-backend.md). The reference pack declares two variants ([0028](decisions/0028-standalone-and-orca-variants.md)): `standalone`, where its own backend launches; and `orca`, where Orca launches, waits and closes (an Orca terminal running `agy -p` for a single delegation, [0031](decisions/0031-orca-single-delegation-terminal-agy-p.md); `orca orchestration` for several workers) and the pack only adds its contract. The engine knows nothing about Orca; it only applies the chosen variant as a layer. Packaging ([0034](decisions/0034-delegate-packaging-base-tool-variant-runners.md), engine answers in its 2026-11-01 update): one backend-agnostic `delegate` skill and one shared contract tool in the base, `delegate-core.mjs` (a library the backends import, with no wrapper; 0034 update 2026-11-03), and one backend tool per variant named `delegate-backend` (there is no `runners/` directory). In both variants, the pack's base tool validates the model/effort pair beforehand and confirms the actual model afterwards, because Orca's `launch.effective` is not evidence. When the secondary's quota is out, the primary does the task itself on the model the cost policy fits, or defers and notifies ([0009](decisions/0009-directional-delegation-with-quota-config.md), [0050](decisions/0050-delegation-direction-as-user-configuration.md)); the work never moves to another harness by itself.
 
 Quota freshness: `rate_limits.json` is written only while an interactive agy session with the statusline runs ([0022](decisions/0022-delegate-visible-orca-backend.md)), so a headless `standalone` delegation will often find a stale `ts`, which counts as unknown. Unknown quota counts as available; exhaustion is detected by the quota error from `agy -p`, which marks the pool exhausted for the run ([0022, update 2026-10-26](decisions/0022-delegate-visible-orca-backend.md#update-2026-10-26-unknown-quota-counts-as-available)).
 

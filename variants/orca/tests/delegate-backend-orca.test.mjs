@@ -136,6 +136,27 @@ test('check prints the worker-start flags: --effort only where agy accepts it', 
   }
 })
 
+// Pack 0050: an agy primary delegates to Claude Code; the Orca terminal runs claude -p.
+test('an agy primary runs claude -p in the Orca terminal; check prints a claude worker-start', () => {
+  const sb = sandbox(['agy', 'claude', 'orca'])
+  try {
+    sb.config('delegate:\n  primary: agy\n')
+    const r = runTool(TOOL, ['run', '--from', 'agy', '--model', 'sonnet', '--effort', 'high', '--spec', spec(sb), '--title', 'orca job'], sb)
+    assert.equal(r.code, 0, r.out + r.err)
+    assert.match(r.out, /OK claudecode sonnet\/high .*via=orca:term_fake1/)
+    const create = sb.calls().find(c => c.name === 'orca' && c.argv[1] === 'create')
+    const line = create.argv[create.argv.indexOf('--command') + 1]
+    assert.match(line, /\bclaude'? ["']-p["']/)
+    assert.match(line, /--permission-mode/)
+    assert.equal(sb.calls().find(c => c.name === 'claude').caller, 'claudecode')
+    const c = runTool(TOOL, ['check', '--from', 'agy', '--model', 'sonnet', '--effort', 'high'], sb)
+    assert.equal(c.code, 0, c.out)
+    assert.match(c.out, /worker-start: --agent claude --model sonnet --effort high/)
+  } finally {
+    sb.cleanup()
+  }
+})
+
 test('confirm checks the actual model from worker-read, since launch.effective is not evidence', () => {
   const sb = sandbox(['agy', 'orca'])
   try {

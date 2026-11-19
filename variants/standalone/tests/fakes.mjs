@@ -1,4 +1,4 @@
-// Test helpers: a sandbox under a path with spaces and fake agy/opencode/orca CLIs on PATH.
+// Test helpers: a sandbox under a path with spaces and fake agy/claude/opencode/orca CLIs on PATH.
 // PATH holds only the fakes, node's own directory and the OS directories, so a missing fake can
 // never fall through to a real CLI (no quota is ever spent by the tests).
 import { spawnSync } from 'node:child_process'

@@ -2,6 +2,8 @@
 //   CC      5h 41% ↻ 2h 13m   │ wk 22% ↻ 3d 4h 10m   │ Opus · ctx 34%
 //   agy     5h  8% ↻ 4h 2m    │ wk  5% ↻ 6d 1h 0m    │ 3.8 Flash (Medium)
 //   agy 3p  5h  0% ↻ 5h 0m    │ wk  0% ↻ 6d 1h 0m    │ updated 2h 0m ago
+// The primary harness's rows come first: CC above by default, agy's two above with `primary: agy`
+// in the delegate.yaml (0050).
 // Each harness gives quota only to its own statusline command, on stdin: Claude Code
 // `rate_limits.five_hour|seven_day` (used_percentage, resets_at), agy `quota` with the pools
 // `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly` (used_percentage or remaining_fraction,
@@ -25,7 +27,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { harnessArg, isObject, packHome, readStdin } from './hook-lib.mjs'
+import { harnessArg, isObject, packHome, readSection, readStdin } from './hook-lib.mjs'
 
 export const STALE_SEC = 15 * 60 // TODO(trial): tune against agy's refresh rate
 const LABEL_WIDTH = 8
@@ -138,7 +140,8 @@ function paint(pct, text) {
   return `\x1b[${code}m${text}\x1b[0m`
 }
 
-export function render({ cc, agy, now }) {
+// The primary harness's rows come first (0050): Claude Code by default, agy's two with `primary: agy`.
+export function render({ cc, agy, now, primary = 'claudecode' }) {
   const fresh = s => !!s && now - s.ts <= STALE_SEC
   const cell = (w, ok) => ({ pct: ok ? w.pct : null, cd: ok && w.pct !== null ? formatDuration(w.reset === null ? null : w.reset - now) : '?' })
   const ccOk = fresh(cc)
@@ -164,6 +167,7 @@ export function render({ cc, agy, now }) {
       extra: agy ? age(agy) : 'no data',
     },
   ]
+  if (primary === 'agy') rows.push(rows.shift())
   const pctText = c => (c.pct === null ? '?' : String(c.pct))
   const pw = Math.max(2, ...rows.flatMap(r => [pctText(r.five).length, pctText(r.week).length]))
   const w5 = Math.max(...rows.map(r => r.five.cd.length))
@@ -199,6 +203,16 @@ function writeJson(f, data) {
 
 // The last good snapshot with the live model and context, for a payload that carries no quota.
 const withLive = (prev, cur) => (prev ? { ...prev, model: cur.model || prev.model, ctx: cur.ctx ?? prev.ctx } : cur)
+
+// `primary` from <pack home>/delegate.yaml (0050), read without loading the delegate code; any
+// problem leaves Claude Code first.
+export function primaryOf(env = process.env, home = homedir()) {
+  try {
+    return readSection(readFileSync(join(packHome(env, home), 'delegate.yaml'), 'utf8'), 'delegate').primary === 'agy' ? 'agy' : 'claudecode'
+  } catch {
+    return 'claudecode'
+  }
+}
 
 // The delegate line, or null. The pack home is the one delegate-core.mjs uses.
 export async function delegateLine(env = process.env, home = homedir(), now = Date.now()) {
@@ -246,7 +260,7 @@ async function main() {
     agy = agyFromSnapshot(readJson(agyFile))
   }
   const extra = await delegateLine(process.env, home)
-  process.stdout.write(`${render({ cc, agy, now })}\n${extra ? `${extra}\n` : ''}`)
+  process.stdout.write(`${render({ cc, agy, now, primary: primaryOf(process.env, home) })}\n${extra ? `${extra}\n` : ''}`)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()

@@ -15,7 +15,7 @@ The shared contract (route, model/effort pair, pool and caps, launch, capped log
 
 ```
 node "${DOTAI_TOOLS}/delegate-backend.mjs" run --model M --effort E --spec FILE [--title T] [--kind research|audit|code]
-     [--alt M2:E2] [--to agy|opencode] [--from claudecode|agy|opencode] [--mode interactive|autonomous] [--over-cap]
+     [--alt M2:E2] [--to agy|claudecode|opencode] [--from claudecode|agy] [--mode interactive|autonomous] [--over-cap]
 node "${DOTAI_TOOLS}/delegate-backend.mjs" run --jobs a.json b.json      # parallel, one job file each
 node "${DOTAI_TOOLS}/delegate-backend.mjs" check --model M --effort E    # decide only, no launch
 node "${DOTAI_TOOLS}/delegate-backend.mjs" status [--watch | --line]     # launch tree, quota; --line for a statusline
@@ -35,7 +35,7 @@ In an isolated install (`<home>/.dotai/state.json` records `mode: isolated`), th
 1. **Route** (0009, 0043). Nobody targets Claude Code. Only a Claude Code caller may use agy's third-party pool; an agy hub, OpenCode or an unknown caller is pinned to `gemini-*`. The caller is the parent delegation (`DOTAI_DELEGATE_CALLER`, set for every child), which `--from` and a job file's `from` cannot override; else `--from`; else `CLAUDECODE=1`; else unknown (the restrictive case).
 2. **Pair** (0022, 0030). agy: a Gemini id that holds a level (`gemini-3.8-flash-low`) needs that effort, passed as `--effort`; third-party ids (`claude-*`, `gpt-*`) take `--effort default`, since agy rejects `--effort` for them. Effort levels: `low`, `medium`, `high`, `xhigh`, `max`. OpenCode: `provider/model`, effort as `#variant`, never a Claude model. A model ending in `\` or holding a control character is rejected.
 3. **Pool and caps** (0019, 0022). Quota is read from `~/.gemini/antigravity-cli/rate_limits.json` (and the isolated install's copy; the newest wins), written by the base statusline in interactive agy sessions only. Stale (`staleMinutes`) or missing is unknown, and unknown counts as available. A fresh pool over its threshold, either window, moves to `--alt` when that is on the other pool and fine; otherwise interactive work gets `ASK` (rerun with `--over-cap` on the user's yes) and autonomous work gets `DEFER`. Autonomous is `--mode autonomous` or `DOTAI_AUTONOMOUS=1`, which no flag weakens.
-4. **Quota error** (0022). `status != SUCCESS` and the error says `RESOURCE_EXHAUSTED`, "out of quota", "quota exceeded" or "exceeded your quota" (stderr counts only when stdout held no JSON; a bare "rate limit" is transient and does not count) marks the pool exhausted for `exhaustedMinutes`, then one retry on `--alt` if given, else `DEFER` with the advice for the caller (Claude Code: Sonnet or Haiku, or defer; a hub: defer and notify). A quota state that cannot be written costs one stderr line, never the verdict.
+4. **Quota error** (0022). `status != SUCCESS` and the error says `RESOURCE_EXHAUSTED`, "out of quota", "quota exceeded" or "exceeded your quota" (stderr counts only when stdout held no JSON; a bare "rate limit" is transient and does not count) marks the pool exhausted for `exhaustedMinutes`, then one retry on `--alt` if given, else `DEFER` with the advice for the primary: do the task itself on the model the cost policy fits, or defer and tell the user (0050). A Claude Code target (agy primary) matches its own limit texts ("usage limit reached", "hit your limit", "5-hour/weekly limit reached"; assumed, trial pending). A quota state that cannot be written costs one stderr line, never the verdict.
 5. **Job folder.** `<project>/.dotai/jobs/<id>/` (project root as the base hook lib finds it), else `<pack home>/jobs/<id>/`: `spec.md` (a copy), `result.md` (written by the agent in a code job, which keeps accents that `-p` output loses; the reply otherwise), and one `attempt-<n>/` per launch with the CLI's raw stdout in `out.json`, read whole from there (no pipe cap), plus `err.txt` and `done` in `orca`. Job folders older than seven days are deleted when a `run` starts (only folders named like a job id). The prompt holds no quote, `%` or line break, so it survives every shell; a `.cmd` shim gets every argument escaped for cmd.exe (base hook lib `cliInvocation`).
 6. **Launch log.** `<pack home>/launches.jsonl`, append-only; past `logMax` lines it is renamed to `launches.jsonl.1` (the older generation is dropped) under a lock file, so concurrent writers never lose or tear an entry, and readers read both. A log that cannot be written costs one stderr line, never the result line. Events: `start` (`id`, `ts`, `harness`, `from`, `model`, `effort`, `pool`, `title`, `kind`, `mode`, `pid`, `parent`, `jobDir`), `end` (`id`, `status`, `secs`, `inTok`, `outTok`, `result`), `refused`. `check` and `confirm` entries go to `<pack home>/checks.jsonl`, so they never evict a launch. `status` draws the tree from it; the base `Agent` hook appends a `start` entry with `harness: "claudecode"` (plus `agent`, `kind: "subagent"`, no `pid`) for every Claude Code subagent launch it allows, so they show in the same tree as `launched`. The base statusline adds `status --line` as its fourth line, reading this log directly (no subprocess); no log, no line. The tree strips control characters from titles and models.
 
@@ -45,10 +45,13 @@ In an isolated install (`<home>/.dotai/state.json` records `mode: isolated`), th
 
 ```yaml
 delegate:
+  primary: claudecode   # the only harness that delegates (0050): claudecode or agy (which passes --from agy)
   gemini5h: 85          # % of the 5 h window at which the pool counts as over
   gemini7d: 90
   thirdParty5h: 85
   thirdParty7d: 90
+  claude5h: 85          # Claude Code as the target (agy primary)
+  claude7d: 90
   staleMinutes: 15      # older rate_limits.json is unknown
   exhaustedMinutes: 60  # how long a quota error keeps a pool out
   timeoutMin: 30        # per job; the process tree is killed at the deadline
@@ -57,7 +60,7 @@ delegate:
   agyMode: skip-permissions  # code jobs: skip-permissions (default, --dangerously-skip-permissions), auto, accept-edits or plan (--mode)
 ```
 
-A value that is not a positive number (or a known mode) keeps its default, with one warning on stderr.
+A threshold that is not a positive number, or an unknown `agyMode`, keeps its default, with one warning on stderr. A file that cannot be read or parsed, or an unknown `primary`, fails closed: `run` and `check` print `REJECT` with the reason (0050). A `primary` set here whose harness is not installed (its CLI not on PATH, or missing from the install state) turns delegation off: `run` and `check` print `REJECT` and a warning, and nothing launches.
 
 ## Parity with `orca` (0032)
 

@@ -2,7 +2,7 @@
 // End-to-end tests of the standalone backend with fake CLIs on PATH, in paths with spaces.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -49,9 +49,9 @@ test('an invalid pair or a forbidden route never reaches the CLI (exit 2)', () =
     const bad = runTool(TOOL, ['run', '--model', 'claude-sonnet-4-6', '--effort', 'low', '--spec', s], sb, CC)
     assert.equal(bad.code, 2)
     assert.match(bad.out, /^delegate REJECT/m)
-    const hub = runTool(TOOL, ['run', '--model', 'claude-sonnet-4-6', '--effort', 'default', '--spec', s, '--from', 'agy'], sb)
+    const hub = runTool(TOOL, ['run', '--to', 'opencode', '--model', 'openai/gpt-5.5', '--effort', 'high', '--spec', s, '--from', 'agy'], sb)
     assert.equal(hub.code, 2)
-    assert.match(hub.out, /gemini/)
+    assert.match(hub.out, /only the primary/, 'agy is not the primary by default')
     const missing = runTool(TOOL, ['run', '--effort', 'low', '--spec', s], sb, CC)
     assert.equal(missing.code, 2)
     assert.deepEqual(sb.calls(), [])
@@ -70,7 +70,8 @@ test('a quota error marks the pool exhausted, and the next run defers without ca
     assert.match(r.out, /^delegate \S+ DEFER .*gemini.*exhausted/m)
     const again = runTool(TOOL, base(s), sb, { ...CC, FAKE_AGY: 'ok' })
     assert.equal(again.code, 3)
-    assert.match(again.out, /Sonnet or Haiku/)
+    assert.match(again.out, /Claude Code .*cost policy/)
+    assert.doesNotMatch(again.out, /Sonnet|Haiku/)
     assert.equal(sb.calls().length, 1)
   } finally {
     sb.cleanup()
@@ -313,12 +314,12 @@ test('a nested caller cannot claim another caller through --from or a job file',
     const env = { ...CC, DOTAI_DELEGATE_CALLER: 'agy' }
     const flag = runTool(TOOL, ['run', '--model', 'claude-sonnet-4-6', '--effort', 'default', '--spec', s, '--from', 'claudecode'], sb, env)
     assert.equal(flag.code, 2, flag.out)
-    assert.match(flag.out, /agy caller uses only gemini/)
+    assert.match(flag.out, /only the primary/)
     const jobFile = join(sb.project, 'spoof.json')
-    writeFileSync(jobFile, JSON.stringify({ spec: 'task spec.md', model: 'claude-sonnet-4-6', effort: 'default', from: 'claudecode' }))
+    writeFileSync(jobFile, JSON.stringify({ spec: 'task spec.md', model: 'openai/gpt-5.5', effort: 'high', to: 'opencode', from: 'claudecode' }))
     const file = runTool(TOOL, ['run', '--jobs', jobFile], sb, env)
     assert.equal(file.code, 2, file.out)
-    assert.match(file.out, /agy caller uses only gemini/)
+    assert.match(file.out, /only the primary/)
     assert.equal(sb.calls().length, 0)
   } finally {
     sb.cleanup()
@@ -455,6 +456,158 @@ test('a run with no reply text and no result.md fails instead of reporting OK wi
     assert.equal(agy.code, 1, agy.out + agy.err)
     assert.match(agy.out, /FAIL agy .*no reply/)
     assert.doesNotMatch(oc.out + agy.out, /\(none\)/)
+  } finally {
+    sb.cleanup()
+  }
+})
+
+// Pack 0050: `primary: agy` in delegate.yaml turns the direction around; the agy caller passes
+// --from agy, since agy sets no marker a child could read (trial pending).
+const AGY_PRIMARY = 'delegate:\n  primary: agy\n'
+const toClaude = s => ['run', '--from', 'agy', '--model', 'sonnet', '--effort', 'high', '--spec', s, '--title', 'from agy']
+
+test('an agy primary delegates to Claude Code through claude -p (default target: the secondary)', () => {
+  const sb = sandbox(['agy', 'claude'])
+  try {
+    sb.config(AGY_PRIMARY)
+    const r = runTool(TOOL, toClaude(spec(sb)), sb)
+    assert.equal(r.code, 0, r.out + r.err)
+    assert.match(r.out, /^delegate \S+ OK claudecode sonnet\/high .*in=1\.5k out=420/m)
+    const resultPath = /result=(.+)$/.exec(r.out.trim())[1]
+    assert.equal(readFileSync(resultPath, 'utf8'), 'claude reply: Definición', 'a read-only reply is saved to result.md')
+    const [call] = sb.calls()
+    assert.equal(call.name, 'claude')
+    assert.equal(call.caller, 'claudecode', 'a nested delegation from the child is refused (not the primary)')
+    for (const a of ['-p', '--output-format', 'json', '--permission-mode', 'plan']) assert.ok(call.argv.includes(a), a)
+    assert.equal(log(sb)[0].from, 'agy')
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('an agy primary without --from is unknown and refused; agy -> agy is refused for its subagents', () => {
+  const sb = sandbox(['agy', 'claude'])
+  try {
+    sb.config(AGY_PRIMARY)
+    const s = spec(sb)
+    const unknown = runTool(TOOL, ['run', '--model', 'sonnet', '--effort', 'high', '--spec', s], sb)
+    assert.equal(unknown.code, 2, unknown.out)
+    assert.match(unknown.out, /--from agy/)
+    const self = runTool(TOOL, ['run', '--to', 'agy', '--from', 'agy', '--model', 'gemini-3.8-flash-low', '--effort', 'low', '--spec', s], sb)
+    assert.equal(self.code, 2, self.out)
+    assert.match(self.out, /subagents/)
+    const cc = runTool(TOOL, base(s), sb, CC)
+    assert.equal(cc.code, 2, 'Claude Code is the secondary now')
+    assert.match(cc.out, /only the primary/)
+    const oc = runTool(TOOL, ['run', '--from', 'opencode', '--model', 'sonnet', '--effort', 'high', '--spec', s], sb)
+    assert.match(oc.out, /target only/)
+    assert.deepEqual(sb.calls(), [])
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('a Claude quota error marks the claude pool; the agy primary does the task itself or defers', () => {
+  const sb = sandbox(['agy', 'claude'])
+  try {
+    sb.config(AGY_PRIMARY)
+    const s = spec(sb)
+    const r = runTool(TOOL, toClaude(s), sb, { FAKE_CLAUDE: 'quota' })
+    assert.equal(r.code, 3, r.out + r.err)
+    assert.match(r.out, /DEFER .*claude pool exhausted.*in agy .*cost policy/)
+    assert.doesNotMatch(r.out, /Sonnet|Haiku/)
+    assert.equal(runTool(TOOL, toClaude(s), sb).code, 3, 'the next run defers without calling claude')
+    assert.equal(sb.calls().length, 1)
+    rmSync(join(sb.env.DOTAI_DELEGATE_HOME, 'quota-state.json'))
+    const e = runTool(TOOL, toClaude(s), sb, { FAKE_CLAUDE: 'error' })
+    assert.equal(e.code, 1, e.out)
+    assert.match(e.out, /FAIL claudecode .*boom/, 'any other error is a failure, not the quota')
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('under an isolated install the delegated Claude Code gets CLAUDE_CONFIG_DIR; a missing config fails', () => {
+  const sb = sandbox(['agy', 'claude'])
+  try {
+    sb.config(AGY_PRIMARY)
+    const s = spec(sb)
+    mkdirSync(join(sb.home, '.dotai'), { recursive: true })
+    writeFileSync(join(sb.home, '.dotai', 'state.json'), JSON.stringify({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['claudecode', 'antigravity-cli'] }))
+    const missing = runTool(TOOL, toClaude(s), sb)
+    assert.equal(missing.code, 1, missing.out)
+    assert.match(missing.out, /FAIL .*isolated Claude Code directory/)
+    const dir = join(sb.home, '.dotai', 'isolated', 'claude')
+    mkdirSync(dir, { recursive: true })
+    const ok = runTool(TOOL, [...toClaude(s), '--kind', 'code'], sb, { CLAUDE_CONFIG_DIR: join(sb.home, 'mine') })
+    assert.equal(ok.code, 0, ok.out + ok.err)
+    const [call] = sb.calls()
+    assert.equal(call.claudeConfig, dir)
+    assert.ok(call.argv.includes('acceptEdits'))
+    assert.equal(readFileSync(/result=(.+)$/.exec(ok.out.trim())[1], 'utf8'), 'claude result')
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('a child that empties DOTAI_DELEGATE_CALLER is still a delegated child: --from cannot make it the primary', () => {
+  const sb = sandbox()
+  try {
+    const r = runTool(TOOL, [...base(spec(sb)), '--from', 'claudecode'], sb, { ...CC, DOTAI_DELEGATE_CALLER: '' })
+    assert.equal(r.code, 2, r.out)
+    assert.match(r.out, /only the primary/)
+    assert.deepEqual(sb.calls(), [])
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('every launched harness gets DOTAI_DELEGATE_CALLER, so its hooks know it is delegated', () => {
+  const sb = sandbox(['agy', 'claude', 'opencode'])
+  try {
+    const s = spec(sb)
+    assert.equal(runTool(TOOL, base(s), sb, CC).code, 0)
+    assert.equal(runTool(TOOL, ['run', '--to', 'opencode', '--model', 'openai/gpt-5.5', '--effort', 'high', '--spec', s], sb, CC).code, 0)
+    sb.config(AGY_PRIMARY)
+    assert.equal(runTool(TOOL, toClaude(s), sb).code, 0)
+    assert.deepEqual(sb.calls().map(c => [c.name, c.caller]), [['agy', 'agy'], ['opencode', 'opencode'], ['claude', 'claudecode']])
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('a delegate.yaml that cannot be parsed, or names an unknown primary, fails closed', () => {
+  const sb = sandbox()
+  try {
+    const s = spec(sb)
+    for (const text of ['delegate:\n  primary: opencode\n', 'delegate:\n  primary agy\n']) {
+      sb.config(text)
+      const r = runTool(TOOL, base(s), sb, CC)
+      assert.equal(r.code, 2, r.out)
+      assert.match(r.out, /^delegate REJECT .*delegate\.yaml/m)
+      assert.equal(runTool(TOOL, ['check', '--model', 'gemini-3.8-flash-low', '--effort', 'low'], sb, CC).code, 2)
+      assert.equal(runTool(TOOL, ['status'], sb).code, 0, 'status still works')
+    }
+    assert.deepEqual(sb.calls(), [])
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('a primary that is not installed warns and delegates nothing (no failure)', () => {
+  const sb = sandbox(['opencode'])
+  try {
+    sb.config(AGY_PRIMARY)
+    const r = runTool(TOOL, ['run', '--from', 'agy', '--to', 'opencode', '--model', 'openai/gpt-5.5', '--effort', 'high', '--spec', spec(sb)], sb)
+    assert.equal(r.code, 2, r.out)
+    assert.match(r.out, /REJECT .*primary agy is not installed/)
+    assert.match(r.err, /primary/)
+    const c = runTool(TOOL, ['check', '--from', 'agy', '--to', 'opencode', '--model', 'openai/gpt-5.5', '--effort', 'high'], sb)
+    assert.equal(c.code, 2)
+    assert.equal(runTool(TOOL, ['status'], sb).code, 0, 'status still works')
+    sb.config('delegate:\n  primary: claudecode\n')
+    assert.match(runTool(TOOL, base(spec(sb)), sb, CC).out, /primary claudecode is not installed/)
+    assert.deepEqual(sb.calls(), [])
   } finally {
     sb.cleanup()
   }

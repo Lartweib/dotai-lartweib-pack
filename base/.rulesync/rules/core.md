@@ -33,7 +33,7 @@ First decide: does the request authorize a change? Then pick a type. Move to the
 | Autonomous backlog | `autonomous` skill | Check + separate verifier | Round and turn caps, quota cap |
 | Audit, migration, research | Bounded workflow, pilot one slice | Adversarial verification | No human gates inside |
 
-Delegate to agy via the `delegate` skill: research, audits, bulk mechanical work. Keep small changes, bugs and exploration in Claude Code.
+Delegate research, audits and bulk mechanical work to the other harness via the `delegate` skill. Keep small changes, bugs and exploration here.
 
 ## Cost
 

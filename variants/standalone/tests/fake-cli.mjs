@@ -1,9 +1,11 @@
-// Fake agy, opencode and orca for the tests. Behavior comes from FAKE_AGY / FAKE_OPENCODE /
-// FAKE_ORCA; every call is appended to FAKE_LOG. Never calls a real CLI.
+// Fake agy, claude, opencode and orca for the tests. Behavior comes from FAKE_AGY / FAKE_CLAUDE /
+// FAKE_OPENCODE / FAKE_ORCA; every call is appended to FAKE_LOG. Never calls a real CLI.
 import { spawn } from 'node:child_process'
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+const HERE = dirname(fileURLToPath(import.meta.url))
 const [name, ...argv] = process.argv.slice(2)
 const env = process.env
 const log = extra => {
@@ -86,6 +88,24 @@ async function opencode() {
   ev('step_finish', { type: 'step-finish', reason: 'stop', tokens })
 }
 
+// `claude -p PROMPT --output-format json`: one result object. The shapes are the ASSUMED fixtures
+// in base/tests/fixtures/claude-p-assumed (pack 0050, trial pending).
+async function claude() {
+  log({ caller: env.DOTAI_DELEGATE_CALLER, parent: env.DOTAI_DELEGATE_PARENT, claudeConfig: env.CLAUDE_CONFIG_DIR })
+  const fixture = f => readFileSync(join(HERE, '..', '..', '..', 'base', 'tests', 'fixtures', 'claude-p-assumed', f), 'utf8')
+  const mode = env.FAKE_CLAUDE ?? 'ok'
+  if (mode === 'quota' || mode === 'error') {
+    process.stdout.write(fixture(`${mode}.json`))
+    process.exit(1)
+  }
+  const dir = jobDir(argv[argv.indexOf('-p') + 1])
+  if (dir && arg('--permission-mode') === 'acceptEdits') {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'result.md'), 'claude result')
+  }
+  process.stdout.write(fixture('success.json'))
+}
+
 async function orcaTerm() {
   const line = argv[0]
   const child =
@@ -159,4 +179,4 @@ async function orca() {
   process.exit(1)
 }
 
-await { agy, opencode, orca, 'orca-term': orcaTerm }[name]()
+await { agy, claude, opencode, orca, 'orca-term': orcaTerm }[name]()

@@ -17,7 +17,7 @@ Links to engine records use the sibling path `../../../dotai/docs/decisions/<fil
 | [0004](0004-keep-1m-context-thin-orchestrator.md) | The 1M context stays; the operating mode changes | accepted | 2026-10-19 |
 | [0005](0005-engram-as-memory-backend.md) | Memory: engram as the backend, without cloning it (for now) | accepted | 2026-10-19 |
 | [0008](0008-always-on-budget-values.md) | Always-on budget values (partially superseded by 0046) | accepted | 2026-10-26 |
-| [0009](0009-directional-delegation-with-quota-config.md) | Directional delegation with quota as configuration (partially superseded by 0034) | accepted | 2026-10-20 |
+| [0009](0009-directional-delegation-with-quota-config.md) | Directional delegation with quota as configuration (partially superseded by 0034 and 0050) | accepted | 2026-10-20 |
 | [0010](0010-onboarding-profile-classification.md) | Onboarding in the reference pack: classification and analyzer (partially superseded by dotai 0023) | accepted | 2026-10-20 |
 | [0011](0011-browser-tooling-split.md) | Browser tooling split | accepted | 2026-10-20 |
 | [0012](0012-memory-and-code-intelligence-keep-and-measure.md) | Memory and code intelligence: keep and measure | accepted | 2026-10-20 |
@@ -54,6 +54,7 @@ Links to engine records use the sibling path `../../../dotai/docs/decisions/<fil
 | [0047](0047-adopt-dotai-owned-onboarding.md) | Adopt dotai's project onboarding; the pack keeps only the clash cleanup | accepted | 2026-11-18 |
 | [0048](0048-versioning-and-release.md) | Versioning and release | accepted | 2026-11-19 |
 | [0049](0049-vercel-profile.md) | A `vercel` profile: CLI and skill, no MCP | accepted | 2026-11-19 |
+| [0050](0050-delegation-direction-as-user-configuration.md) | Delegation direction as user configuration (`primary`) | accepted | 2026-11-19 |
 
 ## Superseded (history only)
 

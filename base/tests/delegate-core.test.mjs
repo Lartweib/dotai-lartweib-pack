@@ -12,7 +12,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   DEFAULTS,
   agyIsolation,
+  claudeIsolation,
   openCodeIsolation,
+  isolationVars,
   isolatedEnv,
   appendLog,
   buildArgs,
@@ -27,6 +29,7 @@ import {
   markExhausted,
   parseAgyJson,
   parseArgs,
+  parseClaudeJson,
   parseOpenCodeJson,
   poolOf,
   readLog,
@@ -39,6 +42,9 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url))
 const tmp = () => mkdtempSync(join(tmpdir(), 'dotai core '))
 const NOW = Date.parse('2026-11-02T12:00:00Z')
+// claude -p --output-format json samples. ASSUMED shapes (pack 0050, trial pending): no Claude
+// session was started to record them, so they follow the documented result object.
+const claudeFixture = name => readFileSync(join(HERE, 'fixtures', 'claude-p-assumed', name), 'utf8')
 
 test('a Gemini id with a level needs that same effort, passed as --effort', () => {
   assert.deepEqual(checkPair('agy', 'gemini-3.8-flash-low', 'low'), { ok: true, effortFlag: 'low' })
@@ -79,19 +85,33 @@ test('pools: gemini-* is the Gemini pool, any other agy model the third-party po
   assert.equal(poolOf('opencode', 'openai/gpt-5.5'), 'opencode')
 })
 
-test('directional routes (0009): only Claude Code may use the third-party pool; nobody targets Claude Code', () => {
-  assert.equal(checkRoute('claudecode', 'agy', 'claude-sonnet-4-6').ok, true)
-  assert.equal(checkRoute('claudecode', 'agy', 'gemini-3.8-flash-low').ok, true)
-  assert.equal(checkRoute('claudecode', 'opencode', 'openai/gpt-5.5').ok, true)
-  assert.equal(checkRoute('agy', 'agy', 'gemini-3.8-flash-low').ok, true)
-  assert.equal(checkRoute('agy', 'opencode', 'openai/gpt-5.5').ok, true)
-  for (const from of ['agy', 'opencode', 'unknown']) {
-    const r = checkRoute(from, 'agy', 'claude-sonnet-4-6')
-    assert.equal(r.ok, false, from)
-    assert.match(r.reason, /gemini/)
+test('Claude Code as a target takes Claude models only: an alias or claude-*, effort low..max or default', () => {
+  assert.deepEqual(checkPair('claudecode', 'sonnet', 'default'), { ok: true, effortFlag: null })
+  assert.deepEqual(checkPair('claudecode', 'claude-opus-4-7', 'high'), { ok: true, effortFlag: 'high' })
+  assert.deepEqual(checkPair('claudecode', 'haiku', 'low'), { ok: true, effortFlag: 'low' })
+  for (const m of ['gemini-3.8-pro', 'gpt-5.5', 'openai/gpt-5.5']) assert.equal(checkPair('claudecode', m, 'high').ok, false, m)
+  assert.equal(poolOf('claudecode', 'sonnet'), 'claude')
+})
+
+test('routes (0050): only the primary delegates, always to another harness; OpenCode is a target only', () => {
+  assert.equal(checkRoute('claudecode', 'agy').ok, true, 'the default primary is Claude Code')
+  assert.equal(checkRoute('claudecode', 'opencode').ok, true)
+  assert.equal(checkRoute('agy', 'claudecode', 'agy').ok, true)
+  assert.equal(checkRoute('agy', 'opencode', 'agy').ok, true)
+  for (const [from, target, primary] of [['agy', 'opencode', 'claudecode'], ['claudecode', 'agy', 'agy'], ['unknown', 'agy', 'claudecode']]) {
+    const r = checkRoute(from, target, primary)
+    assert.equal(r.ok, false, `${from} -> ${target}`)
+    assert.match(r.reason, /primary/)
   }
-  for (const from of ['claudecode', 'agy', 'opencode', 'unknown']) assert.equal(checkRoute(from, 'claudecode', 'sonnet').ok, false)
-  assert.equal(checkRoute('opencode', 'opencode', 'openai/gpt-5.5').ok, false)
+  assert.match(checkRoute('unknown', 'claudecode', 'agy').reason, /--from agy/, 'an agy primary is known only by --from')
+  for (const target of ['agy', 'claudecode']) assert.match(checkRoute('opencode', target, 'agy').reason, /target only/)
+})
+
+test('no delegation within one harness: agy -> agy points to its subagents', () => {
+  const r = checkRoute('agy', 'agy', 'agy')
+  assert.equal(r.ok, false)
+  assert.match(r.reason, /subagents/)
+  assert.match(checkRoute('claudecode', 'claudecode').reason, /subagents/)
 })
 
 test('the caller comes from the parent delegation, else Claude Code, else unknown', () => {
@@ -99,6 +119,7 @@ test('the caller comes from the parent delegation, else Claude Code, else unknow
   assert.equal(detectCaller({ CLAUDECODE: '1' }), 'claudecode')
   assert.equal(detectCaller({}), 'unknown')
   assert.equal(detectCaller({ DOTAI_DELEGATE_CALLER: 'bogus' }), 'unknown')
+  assert.equal(detectCaller({ DOTAI_DELEGATE_CALLER: '', CLAUDECODE: '1' }), 'unknown', 'present but empty is still a delegated child (0050)')
 })
 
 test('autonomous mode comes from the flag or DOTAI_AUTONOMOUS, never weakened by the flag', () => {
@@ -144,7 +165,29 @@ test('rate_limits.json: the newest of the normal and the isolated install wins',
   }
 })
 
-const unknown = { gemini: { h5: null, d7: null, fresh: false }, 'third-party': { h5: null, d7: null, fresh: false } }
+test("Claude Code's quota: the newest rate_limits.json of its config directories; stale or missing is unknown", () => {
+  const d = tmp()
+  try {
+    const snap = (dir, pct, ts) => {
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, 'rate_limits.json'), JSON.stringify({ ts, five_hour_pct: pct, seven_day_pct: 30 }))
+    }
+    assert.deepEqual(readQuota({ env: {}, home: d, now: NOW }).claude, { h5: null, d7: null, fresh: false })
+    snap(join(d, '.claude'), 20, (NOW - 120000) / 1000)
+    assert.deepEqual(readQuota({ env: {}, home: d, now: NOW }).claude, { h5: 20, d7: 30, fresh: true })
+    snap(join(d, '.dotai', 'isolated', 'claude'), 60, (NOW - 60000) / 1000)
+    assert.equal(readQuota({ env: {}, home: d, now: NOW }).claude.h5, 60, 'the isolated config is newer')
+    const custom = join(d, 'custom')
+    snap(custom, 75, (NOW - 1000) / 1000)
+    assert.equal(readQuota({ env: { CLAUDE_CONFIG_DIR: custom }, home: d, now: NOW }).claude.h5, 75)
+    for (const dir of [custom, join(d, '.claude'), join(d, '.dotai', 'isolated', 'claude')]) snap(dir, 20, (NOW - 3600000) / 1000)
+    assert.equal(readQuota({ env: { CLAUDE_CONFIG_DIR: custom }, home: d, now: NOW }).claude.fresh, false, 'only interactive sessions write it: mostly stale')
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
+})
+
+const unknown = { gemini: { h5: null, d7: null, fresh: false }, 'third-party': { h5: null, d7: null, fresh: false }, claude: { h5: null, d7: null, fresh: false } }
 const over = pool => ({ ...unknown, [pool]: { h5: 95, d7: 10, fresh: true } })
 const job = (extra = {}) => ({ target: 'agy', from: 'claudecode', model: 'gemini-3.8-flash-low', effort: 'low', ...extra })
 
@@ -175,14 +218,22 @@ test('hard cap in autonomous work: over the threshold defers, approval or not (0
   assert.equal(r.action, 'defer')
 })
 
-test('a pool marked exhausted defers even with approval; the advice depends on the caller', () => {
+test('an exhausted secondary defers; the primary may do the task itself on the model the cost policy fits (0050)', () => {
   const cc = decide({ job: job(), quota: unknown, exhausted: { gemini: NOW + 1000 }, cfg: DEFAULTS, mode: 'interactive', overCap: true, now: NOW })
   assert.equal(cc.action, 'defer')
-  assert.match(cc.reason, /Sonnet or Haiku/)
-  const hub = decide({ job: job({ from: 'agy' }), quota: unknown, exhausted: { gemini: NOW + 1000 }, cfg: DEFAULTS, mode: 'interactive', now: NOW })
+  assert.match(cc.reason, /Claude Code.*cost policy/)
+  assert.doesNotMatch(cc.reason, /Sonnet|Haiku/)
+  const agyJob = job({ from: 'agy', target: 'claudecode', model: 'sonnet', effort: 'default' })
+  const agyCfg = { ...DEFAULTS, primary: 'agy' }
+  const hub = decide({ job: agyJob, quota: unknown, exhausted: { claude: NOW + 1000 }, cfg: agyCfg, mode: 'interactive', now: NOW })
   assert.equal(hub.action, 'defer')
-  assert.match(hub.reason, /notify/)
-  assert.doesNotMatch(hub.reason, /Sonnet/)
+  assert.equal(hub.pool, 'claude')
+  assert.match(hub.reason, /in agy .*cost policy/)
+  assert.doesNotMatch(hub.reason, /Sonnet|Haiku|fall back/)
+  const q = { ...unknown, claude: { h5: 90, d7: 10, fresh: true } }
+  assert.equal(decide({ job: agyJob, quota: q, cfg: agyCfg, mode: 'interactive', now: NOW }).action, 'ask', 'claude5h threshold')
+  assert.equal(decide({ job: agyJob, quota: q, cfg: { ...agyCfg, claude5h: 95 }, mode: 'interactive', now: NOW }).action, 'launch')
+  assert.equal(decide({ job: { ...agyJob, target: undefined }, quota: unknown, cfg: agyCfg, now: NOW }).pool, 'claude', 'the default target is the secondary')
 })
 
 test('an alternative that breaks the route or the pair is rejected before launch', () => {
@@ -222,6 +273,68 @@ test('agy JSON: status, usage, quota error (0022 detection rule)', () => {
   assert.equal(isQuotaError(q), true)
   assert.equal(isQuotaError(parseAgyJson(JSON.stringify({ status: 'ERROR', error: 'boom' }))), false)
   assert.equal(parseAgyJson('not json').status, 'UNPARSED')
+})
+
+test('claude -p JSON (assumed shape, trial pending): result, usage, error, quota', () => {
+  const ok = parseClaudeJson(claudeFixture('success.json'))
+  assert.equal(ok.status, 'SUCCESS')
+  assert.equal(ok.response, 'claude reply: Definición')
+  assert.equal(ok.inTok, 1500, 'cache tokens are not counted')
+  assert.equal(ok.outTok, 420)
+  assert.equal(isQuotaError(ok, '', 'claudecode'), false)
+  const err = parseClaudeJson(claudeFixture('error.json'))
+  assert.equal(err.status, 'ERROR')
+  assert.match(err.error, /boom/)
+  assert.equal(isQuotaError(err, '', 'claudecode'), false)
+  const q = parseClaudeJson(claudeFixture('quota.json'))
+  assert.equal(q.status, 'ERROR', 'is_error wins over subtype success')
+  assert.equal(isQuotaError(q, '', 'claudecode'), true)
+  for (const e of ["You've hit your limit · resets 3pm", '5-hour limit reached ∙ resets 3pm', 'Weekly limit reached']) {
+    assert.equal(isQuotaError({ status: 'ERROR', error: e }, '', 'claudecode'), true, e)
+  }
+  assert.equal(isQuotaError({ status: 'ERROR', error: 'rate limit exceeded, retry in 2s' }, '', 'claudecode'), false, 'a transient rate limit is not the quota')
+  assert.equal(parseClaudeJson('starting\n' + claudeFixture('success.json')).status, 'SUCCESS')
+  const stream = parseClaudeJson(JSON.stringify([{ type: 'system' }, JSON.parse(claudeFixture('success.json'))]))
+  assert.equal(stream.response, 'claude reply: Definición', 'a message array: its result entry')
+  const none = parseClaudeJson('Error: not logged in')
+  assert.equal(none.status, 'UNPARSED')
+  assert.equal(isQuotaError(none, 'Claude AI usage limit reached|1763600000', 'claudecode'), true)
+})
+
+test('config: primary is claudecode or agy (0050); anything else is an error that fails closed', () => {
+  const d = tmp()
+  try {
+    assert.equal(loadConfig(d).values.primary, 'claudecode')
+    assert.equal(loadConfig(d).error, null, 'no file: the defaults')
+    assert.deepEqual(loadConfig(d).explicit, [])
+    writeFileSync(join(d, 'delegate.yaml'), 'delegate:\n  primary: agy\n  agyMode: plan\n')
+    const a = loadConfig(d)
+    assert.equal(a.values.primary, 'agy')
+    assert.equal(a.values.agyMode, 'plan')
+    assert.deepEqual(a.warnings, [])
+    assert.equal(a.error, null)
+    assert.ok(a.explicit.includes('primary'))
+    for (const bad of ['opencode', 'plan', 'bogus']) {
+      writeFileSync(join(d, 'delegate.yaml'), `delegate:\n  primary: ${bad}\n`)
+      assert.match(loadConfig(d).error, new RegExp(`primary.*"${bad}"`), bad)
+    }
+    for (const broken of ['delegate:\n  primary agy\n', 'delegate:\n  - primary: agy\n', 'primary: agy\n', '- delegate\n']) {
+      writeFileSync(join(d, 'delegate.yaml'), broken)
+      assert.match(loadConfig(d).error, /cannot parse/, JSON.stringify(broken))
+    }
+    writeFileSync(join(d, 'delegate.yaml'), '# only a comment\n\n')
+    assert.equal(loadConfig(d).error, null, 'an empty file is the defaults')
+    writeFileSync(join(d, 'delegate.yaml'), 'other:\n  x: 1\ndelegate:\n  gemini5h: 70\n')
+    assert.equal(loadConfig(d).error, null, 'other sections are not ours')
+    rmSync(join(d, 'delegate.yaml'))
+    mkdirSync(join(d, 'delegate.yaml'))
+    assert.match(loadConfig(d).error, /cannot read/, 'a file that exists but cannot be read')
+    rmSync(join(d, 'delegate.yaml'), { recursive: true })
+    writeFileSync(join(d, 'delegate.yaml'), 'delegate:\n  agyMode: agy\n')
+    assert.equal(loadConfig(d).values.agyMode, DEFAULTS.agyMode, 'agyMode keeps its own values')
+  } finally {
+    rmSync(d, { recursive: true, force: true })
+  }
 })
 
 test('config: delegate.yaml overrides defaults; a bad value falls back with a warning', () => {
@@ -538,4 +651,65 @@ test('the isolation flag comes first in the agy command, as dotai run passes it'
   }
   assert.ok(!buildArgs('agy', d, 'p', DEFAULTS, jobDir, cwd, 'code').some(a => a.startsWith('--gemini_dir')))
   assert.ok(!buildArgs('opencode', { model: 'openai/gpt-5.5', effortFlag: null }, 'p', DEFAULTS, jobDir, cwd, 'code', { geminiDir: gemini }).some(a => a.startsWith('--gemini_dir')))
+})
+
+// Flags checked with `claude --help` only (Claude Code 2.1.328); no Claude session was started.
+test('a delegated Claude Code runs claude -p: plan for read-only kinds, acceptEdits with no prompts for code', () => {
+  const d = { model: 'sonnet', effortFlag: 'high' }
+  const cwd = join(tmpdir(), 'proj')
+  const inside = join(cwd, '.dotai', 'jobs', 'x')
+  const val = (args, f) => args[args.indexOf(f) + 1]
+  for (const kind of ['research', 'audit']) {
+    const args = buildArgs('claudecode', d, 'p', DEFAULTS, inside, cwd, kind)
+    assert.deepEqual(args.slice(0, 2), ['-p', 'p'], kind)
+    assert.equal(val(args, '--model'), 'sonnet')
+    assert.equal(val(args, '--effort'), 'high')
+    assert.equal(val(args, '--output-format'), 'json')
+    assert.equal(val(args, '--permission-mode'), 'plan', kind)
+    assert.ok(args.includes('--no-session-persistence'))
+    assert.ok(!args.some(a => /dangerously|bypass/i.test(a)), 'never bypasses permissions')
+    assert.ok(!args.includes('--add-dir'), 'the job folder is inside the project')
+  }
+  const outside = join(tmpdir(), 'home', 'jobs', 'x')
+  const code = buildArgs('claudecode', { model: 'haiku', effortFlag: null }, 'p', DEFAULTS, outside, cwd, 'code')
+  assert.equal(val(code, '--permission-mode'), 'acceptEdits')
+  assert.equal(val(code, '--permission-prompts'), 'none')
+  assert.ok(!code.includes('--effort'))
+  assert.deepEqual(code.slice(-2), ['--add-dir', outside], '--add-dir takes several values, so it goes last')
+})
+
+test("a delegated Claude Code runs on the isolated install's config through CLAUDE_CONFIG_DIR", () => {
+  const home = tmp()
+  try {
+    const state = obj => {
+      mkdirSync(join(home, '.dotai'), { recursive: true })
+      writeFileSync(join(home, '.dotai', 'state.json'), JSON.stringify(obj))
+    }
+    const dir = join(home, '.dotai', 'isolated', 'claude')
+    assert.deepEqual(claudeIsolation(home), { env: null })
+    state({ schema: 'dotai.state/v1', mode: 'replace', harnesses: ['claudecode'] })
+    assert.deepEqual(claudeIsolation(home), { env: null })
+    state({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['claudecode', 'antigravity-cli'] })
+    assert.match(claudeIsolation(home).error, /isolated.*claude.*dotai install/s)
+    mkdirSync(dir, { recursive: true })
+    const iso = claudeIsolation(home)
+    assert.deepEqual(iso.env, { CLAUDE_CONFIG_DIR: dir })
+    const env = isolatedEnv({ PATH: '/bin', claude_config_dir: '/mine', XDG_CONFIG_HOME: '/x' }, iso, 'win32')
+    assert.deepEqual(env, { PATH: '/bin', XDG_CONFIG_HOME: '/x', CLAUDE_CONFIG_DIR: dir }, 'only the variables Claude Code owns are replaced')
+    assert.deepEqual(isolationVars(iso), { set: { CLAUDE_CONFIG_DIR: dir }, unset: [] })
+    state({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['antigravity-cli'] })
+    assert.match(claudeIsolation(home).error, /not in the isolated install/)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('a delegated Claude Code with a pid runs in the tree; subagent entries stay launched', () => {
+  const entries = [
+    { id: 'a', event: 'start', ts: NOW - 5000, harness: 'claudecode', model: 'sonnet', effort: 'high', title: 'from agy', pid: process.pid },
+    { id: 'c', event: 'start', ts: NOW - 5000, harness: 'claudecode', model: 'haiku', effort: 'low', title: 'sub', kind: 'subagent' },
+  ]
+  assert.match(renderTree(entries, NOW), /from agy.*running/)
+  assert.match(renderTree(entries, NOW), /sub.*launched/)
+  assert.match(statusLine(entries, NOW), /1 running/)
 })

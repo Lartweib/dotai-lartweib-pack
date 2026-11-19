@@ -1,5 +1,6 @@
 // delegate-backend, orca variant (pack 0022, 0031, 0033, 0034): a single delegation opens a
-// visible Orca terminal running `agy -p --output-format json`, waits for it and closes it.
+// visible Orca terminal running `agy -p --output-format json` (or `claude -p` for an agy primary,
+// pack 0050), waits for it and closes it.
 // Several workers go through Orca's own `orchestration` skill, referenced by name, never copied;
 // this tool only adds the pack's checks around `worker-start` (check, confirm).
 // Without a reachable Orca the delegation runs headless: dotai never depends on Orca (0022).
@@ -25,6 +26,8 @@ try {
 const { appendLog, findOnPath, headlessLaunch, main, runCli } = core
 
 const TOOL = `${TOOLS}/delegate-backend.mjs`
+// Orca's worker-start agent per target. `claude` for Claude Code is assumed (0050, trial pending).
+const ORCA_AGENT = { agy: 'antigravity', claudecode: 'claude' }
 const WIN = process.platform === 'win32'
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 const msFrom = (v, fallback) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fallback)
@@ -91,7 +94,7 @@ class Unquotable extends Error {}
 // install's variables (an isolated OpenCode, delegate-core isolationVars) and clears the others it
 // owns, which Orca's environment may hold.
 function terminalLine(spec, { out, err, done }, label) {
-  const parts = [spec.target ?? 'agy', ...spec.args]
+  const parts = [spec.cli ?? spec.target ?? 'agy', ...spec.args]
   const env = { ...spec.isolation?.set, DOTAI_DELEGATE_CALLER: spec.env.DOTAI_DELEGATE_CALLER, DOTAI_DELEGATE_PARENT: spec.env.DOTAI_DELEGATE_PARENT }
   const unset = spec.isolation?.unset ?? []
   if (WIN) {
@@ -175,7 +178,7 @@ async function orcaLaunch(spec) {
   }
   const read = f => (existsSync(f) ? readFileSync(f, 'utf8') : '')
   const via = `orca:${handle ?? 'unknown'}`
-  if (lost) return { code: null, stdout: read(files.out), stderr: read(files.err), timedOut: false, fail: 'terminal closed before agy finished', via }
+  if (lost) return { code: null, stdout: read(files.out), stderr: read(files.err), timedOut: false, fail: `terminal closed before ${spec.cli ?? 'agy'} finished`, via }
   const timedOut = !existsSync(files.done)
   return { code: timedOut ? null : 0, stdout: read(files.out), stderr: read(files.err), timedOut, via }
 }
@@ -205,7 +208,7 @@ async function confirm(a, ctx) {
   const bare = want.replace(/^gemini /, '')
   if (text && (` ${text} `.includes(` ${want} `) || ` ${text} `.includes(` ${bare} `))) verdict = 'CONFIRMED'
   else if (/\b(gemini|claude|gpt)\b/.test(text)) verdict = 'MISMATCH'
-  appendLog(ctx.checks, { event: 'confirm', ts: Date.now(), dispatch, model, verdict, harness: 'agy' }, ctx.cfg.logMax)
+  appendLog(ctx.checks, { event: 'confirm', ts: Date.now(), dispatch, model, verdict, harness: 'orca-worker' }, ctx.cfg.logMax)
   const hint = verdict === 'CONFIRMED' ? '' : ': stop that worker (worker-stop) and report it; do not trust launch.effective'
   process.stdout.write(`delegate ${verdict} dispatch=${dispatch} model=${model}${hint}\n`)
   return verdict === 'CONFIRMED' ? 0 : 1
@@ -215,19 +218,20 @@ export const adapter = {
   variant: 'orca',
   launch: orcaLaunch,
   refuseJobs: 'several workers go through Orca orchestration in this variant; run `workers` for the steps.',
-  checkExtra: (d, job) => (job.target === 'agy' ? ` worker-start: --agent antigravity --model ${d.model}${d.effortFlag ? ` --effort ${d.effortFlag}` : ''}` : ''),
+  // Orca's agent id for Claude Code is assumed to be `claude` (0050, trial pending).
+  checkExtra: (d, job) => (ORCA_AGENT[job.target] ? ` worker-start: --agent ${ORCA_AGENT[job.target]} --model ${d.model}${d.effortFlag ? ` --effort ${d.effortFlag}` : ''}` : ''),
   helpExtra: ["  confirm --dispatch ID --model M   confirm a worker's real model after startup"],
   commands: { confirm },
   workersGuide: () =>
     [
-      "Several agy workers (orca): Orca's orchestration runs them; the pack adds its contract.",
+      "Several workers (orca): Orca's orchestration runs them; the pack adds its contract.",
       '1. Load the guide: orca skills get orchestration. Orca owns it; never copy it.',
       `2. Before each worker-start: node "${TOOL}" check --model M --effort E --title "worker name"`,
-      '   Exit 0 prints the flags to pass (worker-start ... --agent antigravity --model M [--effort E]). Exit 2, 3 or 4: do not start it (fix, defer, or ask the user).',
+      '   Exit 0 prints the flags to pass (worker-start ... --agent A --model M [--effort E]). Exit 2, 3 or 4: do not start it (fix, defer, or ask the user).',
       '3. In each task spec, require the long result in a result file in its own job folder (.dotai/jobs/<name>/result.md); worker_done carries only a short summary.',
       `4. After startup, confirm the real model: node "${TOOL}" confirm --dispatch <dispatch_id> --model M`,
       '   MISMATCH or UNCONFIRMED: stop that worker and report it.',
-      'One worker: use run instead; it opens an Orca terminal running agy -p.',
+      'One worker: use run instead; it opens an Orca terminal running agy -p (claude -p for an agy primary).',
     ].join('\n'),
 }
 
