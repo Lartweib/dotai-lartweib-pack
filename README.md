@@ -62,6 +62,49 @@ flowchart LR
   class FW,FA,FG,FO profileItem
 ```
 
+## How the layers stack
+
+dotai merges the layers in a fixed order: the base, then the variant on top of it, then dotai's own onboarding, all at user scope; profiles come later, per project, as peers. Every step only adds: a later layer cannot silently replace what an earlier one ships.
+
+```mermaid
+flowchart TB
+  subgraph U["User scope · dotai install · once per machine"]
+    direction TB
+    L1["<b>① Base</b><br/>root rule · skills · subagents · hooks<br/>statusline · permissions"]
+    L2["<b>② Variant</b> · standalone or orca<br/>delegate-backend"]
+    L3["<b>③ dotai onboarding</b><br/>dotai-profiles skill · session-start hook"]
+    L1 -->|"adds on top"| L2
+    L2 -->|"engine adds"| L3
+  end
+
+  subgraph PJ["Project scope · dotai apply · per project"]
+    direction LR
+    F1["web"] ~~~ F2["ui"] ~~~ F3["tooling"] ~~~ F4["…"]
+  end
+
+  L3 -->|"proposes from the tracked files"| PJ
+  L1 -.->|"the delegate skill runs the backend"| L2
+
+  classDef base fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef variant fill:#b45309,stroke:#78350f,color:#ffffff
+  classDef engine fill:#475569,stroke:#1e293b,color:#ffffff
+  classDef profile fill:#dcfce7,stroke:#15803d,color:#0f172a
+  class L1 base
+  class L2 variant
+  class L3 engine
+  class F1,F2,F3,F4 profile
+```
+
+| What | How layers combine |
+|---|---|
+| Skills, subagents, rules, MCP servers | One name, one owner. A same name in two layers is an error unless the later one declares an override; a profile can never reuse a base or variant name. |
+| Hooks and permissions | Union in layer order: a later layer appends entries, never removes or changes one. |
+| Settings (statusline, env) | A later layer replaces a value only with a declared override; two profiles setting the same key is an error. |
+| Tools | The base and the variant share `~/.dotai/tools/`, so the same file in both is an error; profiles install to the project's `.dotai/tools/`. |
+| Root rule | Only the base provides it. |
+
+User and project scope write separate files; where both set something, the harness decides which wins (Claude Code, for one, prefers the project).
+
 ## Base
 
 Installed once per machine, at user scope, in every harness the pack manages.
