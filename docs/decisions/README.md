@@ -53,6 +53,7 @@ Links to engine records use the sibling path `../../../dotai/docs/decisions/<fil
 | [0046](0046-split-always-on-budget.md) | Split always-on budget: rules, listing, total | accepted | 2026-11-03 |
 | [0047](0047-adopt-dotai-owned-onboarding.md) | Adopt dotai's project onboarding; the pack keeps only the clash cleanup | accepted | 2026-11-18 |
 | [0048](0048-versioning-and-release.md) | Versioning and release | accepted | 2026-11-19 |
+| [0049](0049-vercel-profile.md) | A `vercel` profile: CLI and skill, no MCP | accepted | 2026-11-19 |
 
 ## Superseded (history only)
 

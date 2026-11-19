@@ -34,6 +34,10 @@ profiles: # set from 0044. dotai's dotai-profiles skill knows each profile only 
     path: profiles/cloudflare
     description: Cloudflare Workers and Pages with wrangler (a wrangler config, or wrangler in package.json).
     hints: [wrangler.toml, wrangler.jsonc, wrangler.json]
+  vercel:
+    path: profiles/vercel
+    description: Apps deployed on Vercel, through the vercel CLI (link, env, deploys, logs). Many have no vercel.json, so ask.
+    hints: [vercel.json, vercel.ts] # .vercel/ is untracked
   video:
     path: profiles/video
     description: Making and analyzing video (Remotion with @remotion/* in package.json, Hyperframes, video files to review).

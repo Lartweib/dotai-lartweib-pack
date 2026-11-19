@@ -2,7 +2,7 @@
 
 A pack for [dotai](https://github.com/Lartweib/dotai), the cross-harness configuration engine for AI coding agents. A pack is an opinionated setup in dotai's format, rendered by the engine into each harness: think LazyVim on top of Neovim.
 
-This one ships a base with a cost policy and guard hooks, two variants for how work is delegated, and nine project profiles. It targets **Claude Code** and **Google Antigravity CLI (agy)**; **OpenCode** is optional and a preview, managed only when you ask for it.
+This one ships a base with a cost policy and guard hooks, two variants for how work is delegated, and ten project profiles. It targets **Claude Code** and **Google Antigravity CLI (agy)**; **OpenCode** is optional and a preview, managed only when you ask for it.
 
 ## Install
 
@@ -40,7 +40,7 @@ flowchart LR
   V --> VS["<b>[tool · variant]</b> standalone<br/>delegate-backend launches the agent itself"]
   V --> VO["<b>[tool · variant]</b> orca<br/>delegate-backend runs it in an Orca terminal"]
 
-  F --> FW["<b>[profile]</b> Web<br/>web · ui · seo · cloudflare"]
+  F --> FW["<b>[profile]</b> Web<br/>web · ui · seo · cloudflare · vercel"]
   F --> FA["<b>[profile]</b> Apps and tools<br/>desktop · tooling · video"]
   F --> FG["<b>[profile]</b> Games<br/>godot"]
   F --> FO["<b>[profile]</b> Long runs<br/>autonomous-orchestra"]
@@ -173,6 +173,7 @@ Flat and combinable; each one is applied per project.
 | `ui` | Any project with a UI | `lartweib-taste` and `browser-tooling` skills, `ui-shot` capture |
 | `seo` | An SEO audit of a public site | Read-size paths for audit outputs; the suite is a manual install |
 | `cloudflare` | Workers and Pages with wrangler | `cloudflare` rule, `wrangler` and `workers-best-practices` skills (vendored, with their licenses) |
+| `vercel` | Apps deployed on Vercel | `vercel` rule and skill (vercel CLI, no MCP; production and env changes need approval) |
 | `video` | Making and reviewing video | `video` rule, `video-frames` skill, `vframes`, `ffqa` |
 | `tooling` | Go or Python CLIs, JS tool workspaces | `tooling` rule, `tooling-check` lint on edit (agy: on Stop) |
 | `desktop` | Electron apps | `desktop` rule, `desktop-verify` and `desktop-release` skills, `desktop-shot` |

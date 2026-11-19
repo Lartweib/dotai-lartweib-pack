@@ -100,6 +100,7 @@ Profiles are flat and combinable ([dotai 0023](../../dotai/docs/decisions/0023-f
 | `ui` | [profiles/ui](../profiles/ui/README.md) |
 | `seo` | [profiles/seo](../profiles/seo/README.md) |
 | `cloudflare` | [profiles/cloudflare](../profiles/cloudflare/README.md) |
+| `vercel` | [profiles/vercel](../profiles/vercel/README.md), added by [0049](decisions/0049-vercel-profile.md) |
 | `video` | [profiles/video](../profiles/video/README.md) |
 | `tooling` | [profiles/tooling](../profiles/tooling/README.md) |
 | `desktop` | [profiles/desktop](../profiles/desktop/README.md) |

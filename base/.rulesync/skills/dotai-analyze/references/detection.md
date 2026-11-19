@@ -14,6 +14,7 @@ Pack names: the base skills (`memory`, `delegate`, `spec`, `autonomous`, `dotai-
 | Duplicate hook | `.claude/settings.json`, `.claude/settings.local.json` (`hooks`), `.agents/hooks.json`, `.opencode/plugins/` | It does what a pack hook does: `SessionStart` state or memory injection, Agent model guard, Bash guards, read-size guard, statusline | Propose removal, or a move to the profile's config key |
 | Memory MCP | `.mcp.json`, `.claude/settings*.json` | An `engram` MCP server (the pack uses the CLI, 0041) | Flag; the user decides |
 | User plugin duplicating a profile | `claude plugin list` | The `cloudflare` plugin (`cloudflare@cloudflare`) with `cloudflare` applied: it duplicates `cloudflare:wrangler` and `cloudflare:workers-best-practices` | Flag; the user runs `claude plugin uninstall cloudflare@cloudflare` (user scope, never touched by this skill) |
+| User plugin duplicating a profile | `claude plugin list` | The `vercel` plugin (`vercel@vercel`) with `vercel` applied: its `vercel-cli` skill duplicates `vercel`, and it adds the Vercel MCP | Flag; the user runs `claude plugin uninstall vercel@vercel` (user scope) |
 | Outdated CLI | `agent-browser --version` | Below 0.38.0 with `ui` applied: `browser-tooling` needs `snapshot --delta` and `screenshot --if-changed` | Flag as a blocking step; the user runs `npm i -g agent-browser@0.41.2` |
 
 Known cases (profile READMEs, "Onboarding clashes" and notes):
@@ -39,6 +40,7 @@ Base: rules 835 static, listing 217 static; measured +1,759 real (~1,400 rules, 
 | `video` | 208 | 50 | ~415 + ~100 |
 | `desktop` | 174 | 85 | ~350 + ~170 |
 | `cloudflare` | 123 | 74 | ~245 + ~150 |
+| `vercel` | 107 | 35 | ~215 + ~70 |
 | `ui` | 0 | 420 (own 107; impeccable 227 + its agent 34, `web-design-guidelines` 52) | 0 + ~840 |
 | `autonomous-orchestra` | 0 | 46 | 0 + ~90 |
 | `seo` | 0 | 1,040 (9 skills 742, 7 agents 298); ~330 with skills `name-only` | 0 + ~2,080 (~660) |

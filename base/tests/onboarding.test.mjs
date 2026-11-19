@@ -35,7 +35,7 @@ function profiles() {
 
 test('every profile has a description and its hints in the manifest', () => {
   const p = profiles()
-  assert.ok(Object.keys(p).length >= 9, Object.keys(p).join(','))
+  assert.ok(Object.keys(p).length >= 10, Object.keys(p).join(','))
   for (const [name, { description, hints }] of Object.entries(p)) {
     assert.ok(description.length >= 20, `${name}: a description the profiling skill can use`)
     assert.ok(description.length <= 200, `${name}: description short (${description.length})`)

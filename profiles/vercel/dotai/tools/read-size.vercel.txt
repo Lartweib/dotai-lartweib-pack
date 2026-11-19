@@ -1,0 +1,3 @@
+# Extra artifact paths for the base size-based Read hook (pack 0039).
+# One gitignore-style pattern per line.
+.vercel/
