@@ -31,19 +31,19 @@ flowchart LR
   P --> V["Variants<br/><i>user scope, pick one</i>"]
   P --> F["Profiles<br/><i>per project, combinable</i>"]
 
-  B --> BR["<b>Rule</b><br/>core: cost policy, task router"]
-  B --> BS["<b>Skills</b><br/>delegate · autonomous · memory<br/>spec · dotai-analyze"]
-  B --> BA["<b>Subagents</b><br/>explorer · researcher · worker<br/>reviewer · judge"]
-  B --> BH["<b>Hooks</b><br/>shell-guard · read-guard · agent-guard<br/>session-start · memory-compact"]
-  B --> BX["<b>Statusline · permissions</b><br/>quota · secret reads denied"]
+  B --> BR["<b>[rule · base]</b><br/>core: cost policy, task router"]
+  B --> BS["<b>[skill · base]</b><br/>delegate · autonomous · memory<br/>spec · dotai-analyze"]
+  B --> BA["<b>[subagent · base]</b><br/>explorer · researcher · worker<br/>reviewer · judge"]
+  B --> BH["<b>[hook · base]</b><br/>shell-guard · read-guard · agent-guard<br/>session-start · memory-compact"]
+  B --> BX["<b>[settings · base]</b> statusline: quota<br/><b>[permissions · base]</b> secret reads denied"]
 
-  V --> VS["<b>standalone</b><br/>launches the agent itself"]
-  V --> VO["<b>orca</b><br/>runs it in an Orca terminal"]
+  V --> VS["<b>[tool · variant]</b> standalone<br/>delegate-backend launches the agent itself"]
+  V --> VO["<b>[tool · variant]</b> orca<br/>delegate-backend runs it in an Orca terminal"]
 
-  F --> FW["<b>Web</b><br/>web · ui · seo · cloudflare"]
-  F --> FA["<b>Apps and tools</b><br/>desktop · tooling · video"]
-  F --> FG["<b>Games</b><br/>godot"]
-  F --> FO["<b>Long runs</b><br/>autonomous-orchestra"]
+  F --> FW["<b>[profile]</b> Web<br/>web · ui · seo · cloudflare"]
+  F --> FA["<b>[profile]</b> Apps and tools<br/>desktop · tooling · video"]
+  F --> FG["<b>[profile]</b> Games<br/>godot"]
+  F --> FO["<b>[profile]</b> Long runs<br/>autonomous-orchestra"]
 
   classDef pack fill:#334155,stroke:#0f172a,color:#ffffff
   classDef base fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
@@ -70,16 +70,16 @@ dotai merges the layers in a fixed order: the base, then the variant on top of i
 flowchart TB
   subgraph U["User scope · dotai install · once per machine"]
     direction TB
-    L1["<b>① Base</b><br/>root rule · skills · subagents · hooks<br/>statusline · permissions"]
-    L2["<b>② Variant</b> · standalone or orca<br/>delegate-backend"]
-    L3["<b>③ dotai onboarding</b><br/>dotai-profiles skill · session-start hook"]
+    L1["<b>① [base]</b><br/>rule · skills · subagents · hooks<br/>settings · permissions"]
+    L2["<b>② [variant]</b> standalone or orca<br/>[tool] delegate-backend"]
+    L3["<b>③ [dotai]</b> onboarding, added by the engine<br/>[skill] dotai-profiles · [hook] session-start"]
     L1 -->|"adds on top"| L2
     L2 -->|"engine adds"| L3
   end
 
   subgraph PJ["Project scope · dotai apply · per project"]
     direction LR
-    F1["web"] ~~~ F2["ui"] ~~~ F3["tooling"] ~~~ F4["…"]
+    F1["[profile] web"] ~~~ F2["[profile] ui"] ~~~ F3["[profile] tooling"] ~~~ F4["[profile] …"]
   end
 
   L3 -->|"proposes from the tracked files"| PJ
@@ -115,18 +115,18 @@ flowchart TB
 
   subgraph A["Project A · a Next.js site on Cloudflare Workers"]
     direction TB
-    AS["<b>Shared</b><br/>core rule · delegate · memory · spec<br/>guards · subagents · statusline"]
-    AW["<b>web</b><br/>web rule · web-check on stop"]
-    AU["<b>ui</b><br/>lartweib-taste · browser-tooling · ui-shot"]
-    AC["<b>cloudflare</b><br/>cloudflare rule · wrangler · workers-best-practices"]
+    AS["<b>Shared · [base] + [variant]</b><br/>[rule] core · [skill] delegate, memory, spec<br/>[hook] guards · [subagent] five · [settings] statusline<br/>[tool] delegate-backend"]
+    AW["<b>[profile] web</b><br/>[rule] web · [hook] web-check on stop"]
+    AU["<b>[profile] ui</b><br/>[skill] lartweib-taste, browser-tooling<br/>[tool] ui-shot"]
+    AC["<b>[profile] cloudflare</b><br/>[rule] cloudflare<br/>[skill] wrangler, workers-best-practices"]
     AS --- AW --- AU --- AC
   end
 
   subgraph B["Project B · a Godot 4 game"]
     direction TB
-    BS["<b>Shared</b><br/>core rule · delegate · memory · spec<br/>guards · subagents · statusline"]
-    BG["<b>godot</b><br/>godot-gdscript · godot-guard<br/>godot-run · godot-state"]
-    BO["<b>autonomous-orchestra</b><br/>orchestra skill · orchestra-lanes"]
+    BS["<b>Shared · [base] + [variant]</b><br/>[rule] core · [skill] delegate, memory, spec<br/>[hook] guards · [subagent] five · [settings] statusline<br/>[tool] delegate-backend"]
+    BG["<b>[profile] godot</b><br/>[rule] godot · [skill] godot-gdscript<br/>[hook] godot-guard, godot-state · [tool] godot-run"]
+    BO["<b>[profile] autonomous-orchestra</b><br/>[skill] autonomous-orchestra · [tool] orchestra-lanes"]
     BS --- BG --- BO
   end
 
@@ -141,7 +141,7 @@ flowchart TB
   class AW,AU,AC,BG,BO profile
 ```
 
-Blue is the same in both projects; green is what each project chose.
+Blue is the same in both projects; green is what each project chose. Each box is tagged with the layer that adds it (`[base]`, `[variant]`, `[profile]`, `[dotai]` for the engine's own items) and each item with its kind (`[rule]`, `[skill]`, `[subagent]`, `[hook]`, `[tool]`, `[settings]`, `[permissions]`). The pack ships no MCP servers yet; one would be tagged `[mcp]`.
 
 ## Base
 
