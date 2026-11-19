@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { redact, summarize } from '../dotai/tools/memory-compact.mjs'
+import { engramProject, redact, summarize } from '../dotai/tools/memory-compact.mjs'
 import { fakeEngram } from './fake-engram.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -81,6 +81,35 @@ const hookErrors = () => {
   rmSync(f, { force: true })
   return lines
 }
+
+// Engram 1.20.0 (mem_current_project, trial 2026-11-19): the origin remote's repository name
+// (git_remote), else the git root's directory name (git_root), else the directory's (dir_basename),
+// each lowercased.
+test("the project name follows Engram's own detection", () => {
+  const base = mkdtempSync(join(tmpdir(), 'mc-project-'))
+  try {
+    const repo = join(base, 'MyRepo_X')
+    mkdirSync(join(repo, '.git'), { recursive: true })
+    assert.equal(engramProject(repo), 'myrepo_x', 'no remote: the root directory name')
+    const config = url => writeFileSync(join(repo, '.git', 'config'),
+      `[core]\n\tbare = false\n[remote "upstream"]\n\turl = https://example.invalid/org/Wrong.git\n[remote "origin"]\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n`)
+    config('https://example.invalid/org/Other-Name.git')
+    assert.equal(engramProject(repo), 'other-name')
+    config('example.invalid:org/Ssh_Name.git')
+    assert.equal(engramProject(repo), 'ssh_name')
+    config('https://example.invalid/org/plain/')
+    assert.equal(engramProject(repo), 'plain')
+    const wt = join(base, 'Worktree')
+    mkdirSync(join(repo, '.git', 'worktrees', 'wt'), { recursive: true })
+    writeFileSync(join(repo, '.git', 'worktrees', 'wt', 'commondir'), '../..\n')
+    mkdirSync(wt)
+    writeFileSync(join(wt, '.git'), `gitdir: ${join(repo, '.git', 'worktrees', 'wt')}\n`)
+    assert.equal(engramProject(wt), 'plain', 'a worktree reads the shared config')
+    assert.equal(engramProject(join(base, 'Plain Dir')), 'plain dir', 'no repository: the directory name')
+  } finally {
+    rmSync(base, { recursive: true, force: true })
+  }
+})
 
 test('PreCompact saves one session summary through the CLI, typed and keyed by session', () => {
   const s = setup()

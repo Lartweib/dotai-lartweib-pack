@@ -62,7 +62,7 @@ async function agy() {
 }
 
 async function opencode() {
-  log({ caller: env.DOTAI_DELEGATE_CALLER })
+  log({ caller: env.DOTAI_DELEGATE_CALLER, xdgConfig: env.XDG_CONFIG_HOME, testHome: env.OPENCODE_TEST_HOME, config: env.OPENCODE_CONFIG, disableClaude: env.OPENCODE_DISABLE_CLAUDE_CODE })
   const message = argv[argv.length - 1]
   const dir = jobDir(message)
   // Without --auto (research, audit) OpenCode cannot write: only the reply comes back.

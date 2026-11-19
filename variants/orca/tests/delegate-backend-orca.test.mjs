@@ -221,6 +221,34 @@ test('a quota retry on --alt runs in its own attempt folder and terminal, and bo
   }
 })
 
+// An Orca terminal starts with Orca's environment, not the delegate's, so the typed line itself
+// runs the target and sets the isolated install's variables, clearing those it owns.
+test('an OpenCode job in an Orca terminal runs opencode with the isolated environment', () => {
+  const sb = sandbox(['opencode', 'orca'])
+  try {
+    mkdirSync(join(sb.home, '.dotai', 'isolated', 'opencode', 'config', 'opencode'), { recursive: true })
+    writeFileSync(join(sb.home, '.dotai', 'state.json'), JSON.stringify({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['opencode'] }))
+    const r = runTool(TOOL, ['run', '--to', 'opencode', '--model', 'openai/gpt-5.5', '--effort', 'high', '--spec', spec(sb), '--title', 'orca job'], sb, CC)
+    assert.equal(r.code, 0, r.out + r.err)
+    assert.match(r.out, /via=orca:/)
+    const line = created(sb)[0].argv[created(sb)[0].argv.indexOf('--command') + 1]
+    const xdg = join(sb.home, '.dotai', 'isolated', 'opencode', 'config')
+    if (process.platform === 'win32') {
+      assert.ok(line.includes(`set "XDG_CONFIG_HOME=${xdg}"`), line)
+      assert.ok(line.includes('set "OPENCODE_CONFIG="'), line)
+      assert.match(line, /& opencode "run" "--standalone"/)
+    } else {
+      assert.ok(line.includes(`XDG_CONFIG_HOME='${xdg}'`), line)
+      assert.match(line, /unset .*OPENCODE_CONFIG/)
+      assert.match(line, / 'opencode' 'run' '--standalone'/)
+    }
+    const oc = sb.calls().find(c => c.name === 'opencode')
+    assert.equal(oc.xdgConfig, xdg)
+  } finally {
+    sb.cleanup()
+  }
+})
+
 test('the typed line enters the working directory first', () => {
   const sb = sandbox(['agy', 'orca'])
   try {

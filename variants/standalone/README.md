@@ -26,7 +26,7 @@ One result line per job, and an exit code: `0 OK`, `1 FAIL`, `2 REJECT`, `3 DEFE
 
 A job file holds the same keys as the flags: `{"spec": "task.md", "model": "...", "effort": "...", "alt": "model:effort", "to": "agy", "kind": "code", "title": "..."}`; a relative `spec` is read from the job file's folder. The spec (links resolved) must be inside the project root or the pack home and must not match the secrets list (`deny-paths.*.txt`); anything else is `REJECT`.
 
-`--kind` sets what the agent may do: `research` (the default) and `audit` are read-only (agy `--mode plan`, OpenCode without `--auto`), and the agent's reply is saved as `result.md`; `code` auto-approves edits and commands (agy `--mode <agyMode>`, `auto` by default; OpenCode `--auto`) and the agent writes `result.md` itself.
+`--kind` sets what the agent may do: `research` (the default) and `audit` are read-only (agy `--mode plan`, OpenCode `--agent plan` without `--auto`), and the agent's reply is saved as `result.md`; `code` auto-approves edits and commands (agy `--mode <agyMode>`, `auto` by default; OpenCode `--auto`) and the agent writes `result.md` itself.
 
 In an isolated install (`<home>/.dotai/state.json` records `mode: isolated`), the delegated agy gets `--gemini_dir=<home>/.dotai/isolated/gemini` first, as `dotai run` passes it, so it runs on the pack's agy config, deny rules and hooks, never the user's own `~/.gemini`. `dotai run` sets no variable a child could read, so the install state decides, whatever harness the caller is. An isolated install without agy, or an unreadable install state, is `FAIL` before agy starts. A replace install, or none, leaves agy on its own directory, which then holds the pack's config.
 
@@ -71,7 +71,14 @@ A value that is not a positive number (or a known mode) keeps its default, with 
 
 - Quota error text: no real sample yet (`RESOURCE_EXHAUSTED`, "out of quota until" from the binary). agy may fall back to paid AI credits after quota instead of failing (measurement 1); the account is assumed subscription-only (0022).
 - agy 1.5.3 `auto` with the pack's config: every shell command fails with "sandbox configuration error: deny .env: non-absolute file path", from the base agy deny rules on relative `.env` paths (`base/.rulesync/permissions.jsonc`). With those rules removed from the isolated settings, the same job ran `git status` and the shell guard still denied the `~/.ssh` read (trial 2026-11-19). Open: how the base agy block denies `.env` without a relative path.
-- OpenCode `run` without `--auto`: whether a permission that would ask is refused or hangs.
+
+## Verified (trial 2026-11-19, OpenCode 2.0.30, Windows)
+
+- The delegated OpenCode under an isolated install gets the environment `dotai run opencode` sets (the four `XDG_*` directories under `<home>/.dotai/isolated/opencode`, `OPENCODE_TEST_HOME` unless the variant shares skills, `OPENCODE_DISABLE_CLAUDE_CODE=1`, the `OPENCODE_CONFIG*` and `OPENCODE_DB` variables removed) and `--standalone`; without the isolated directory it is not started. A code job that ran `cat <home>/.ssh/dummy_key` got the pack's "shell guard: this command reads a denied path"; the scratch home's own `~/.config/opencode` was empty, so the plugin came from the isolated config. In the `orca` variant the typed line sets and clears the same variables, since an Orca terminal has Orca's environment.
+- `run` without `--auto`: a permission that asks is rejected at once, with no hang ("permission requested: edit (note.txt); auto-rejecting" on stderr, the tool error "This non-interactive run cannot ask the user for permission"). But OpenCode's default edit permission is allow, so without `--auto` a write still succeeded, in the project and outside it. Read-only jobs therefore run the built-in `plan` agent, which denies edit (write, edit, patch); its shell is not restricted beyond the shell guard.
+- `run --format json` events: one JSON object per line, `{type, timestamp, sessionID, part}`, with `type` `step_start`, `text` (`part.text`), `tool_use` (`part.tool`, such as `read`, `shell`, `write`; `part.state.status` `completed` or `error`, `part.state.error`) and `step_finish` (`part.tokens.input`, `.output`, `.reasoning`). The parser reads these, tokens included (`in=8.7k out=1.2k`).
+- The shell tool runs `$SHELL` when it resolves, otherwise the first of pwsh, powershell, Git Bash and cmd (hook-lib `shellKind`). From Git Bash it ran `/usr/bin/bash`; with `SHELL` unset and `MSYSTEM` still inherited, Windows PowerShell (`powershell.exe`).
+- Compaction: the pack gives OpenCode no compaction hook (base `hooks.jsonc`), and the rendered plugin registers none. The Engram project name the memory tool uses now follows Engram 1.20.0's detection (origin remote name, else git root name, else directory name, lowercased).
 
 ## Verified (trial 2026-11-19, agy 1.5.3)
 
@@ -80,5 +87,5 @@ A value that is not a positive number (or a known mode) keeps its default, with 
 
 - `--mode plan` under `-p`: agy reads `spec.md` in the job folder and project files, and the reply keeps accents (`ó`, `é`, no U+FFFD) through `--output-format json` into result.md.
 - agy's JSON output (`conversation_id`, `status`, `response`, `duration_seconds`, `num_turns`, `usage`) does not name the model, so `actual-model=...!` never shows for agy. The model is in agy's transcript (`model` on each planner step) and in hook payloads (`modelName`).
-- OpenCode `run --format json --auto`: the event shape; success is the exit code, and tokens are not read.
+- OpenCode `run --format json --auto`: the event shape; success is the exit code (see the OpenCode section above for the fields).
 - Exhaustion could end at the pool's reset time, which the base statusline now writes (`*_resets`), instead of `exhaustedMinutes`.

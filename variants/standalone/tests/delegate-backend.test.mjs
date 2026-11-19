@@ -190,6 +190,33 @@ test('OpenCode is an optional target: provider/model#variant, JSON output', () =
   }
 })
 
+// The isolated install's OpenCode config is reached only through the environment dotai run sets,
+// so a delegated OpenCode gets the same, and is not started when that config is missing.
+test("under an isolated install a delegated OpenCode runs on the install's config, standalone", () => {
+  const sb = sandbox()
+  try {
+    mkdirSync(join(sb.home, '.dotai'), { recursive: true })
+    writeFileSync(join(sb.home, '.dotai', 'state.json'), JSON.stringify({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['opencode'] }))
+    const args = ['run', '--to', 'opencode', '--model', 'openai/gpt-5.5', '--effort', 'high', '--spec', spec(sb)]
+    const missing = runTool(TOOL, args, sb, CC)
+    assert.equal(missing.code, 1)
+    assert.match(missing.out, /FAIL .*isolated OpenCode directory .*missing/)
+    assert.equal(sb.calls().length, 0, 'OpenCode is not started on the user config')
+    const dir = join(sb.home, '.dotai', 'isolated', 'opencode')
+    mkdirSync(join(dir, 'config', 'opencode'), { recursive: true })
+    const r = runTool(TOOL, args, sb, { ...CC, XDG_CONFIG_HOME: join(sb.home, '.config'), OPENCODE_CONFIG: join(sb.home, 'mine.json') })
+    assert.equal(r.code, 0, r.out + r.err)
+    const [call] = sb.calls()
+    assert.deepEqual(call.argv.slice(0, 2), ['run', '--standalone'])
+    assert.equal(call.xdgConfig, join(dir, 'config'))
+    assert.equal(call.testHome, join(dir, 'home'))
+    assert.equal(call.config, undefined)
+    assert.equal(call.disableClaude, '1')
+  } finally {
+    sb.cleanup()
+  }
+})
+
 test('a missing CLI is reported, not hidden', () => {
   const sb = sandbox(['opencode'])
   try {

@@ -12,6 +12,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   DEFAULTS,
   agyIsolation,
+  openCodeIsolation,
+  isolatedEnv,
   appendLog,
   buildArgs,
   buildPrompt,
@@ -334,9 +336,14 @@ test('read-only kinds run agy in plan mode and OpenCode without --auto; code kee
   const oc = { model: 'openai/gpt-5.5', effortFlag: null }
   for (const kind of ['research', 'audit']) {
     assert.equal(mode(buildArgs('agy', d, 'p', cfg, jobDir, cwd, kind)), 'plan', kind)
-    assert.ok(!buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, kind).includes('--auto'), kind)
+    const ocArgs = buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, kind)
+    assert.ok(!ocArgs.includes('--auto'), kind)
+    // Without --auto OpenCode 2.0.30 still writes, in and outside the project, since its default
+    // edit permission is allow (trial 2026-11-19); its built-in plan agent denies edit.
+    assert.equal(ocArgs[ocArgs.indexOf('--agent') + 1], 'plan', kind)
     assert.match(buildPrompt(jobDir, kind), /read-only.*reply with the complete result/i)
   }
+  assert.ok(!buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, 'code').includes('--agent'))
   assert.equal(mode(buildArgs('agy', d, 'p', cfg, jobDir, cwd, 'code')), 'accept-edits', 'agyMode is honored')
   assert.equal(DEFAULTS.agyMode, 'auto', 'accept-edits refuses every shell command under -p (trial 2026-11-19)')
   assert.ok(buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, 'code').includes('--auto'))
@@ -440,6 +447,73 @@ test("a delegated agy runs with the isolated install's config, never the user's 
   } finally {
     rmSync(home, { recursive: true, force: true })
   }
+})
+
+// dotai run isolates OpenCode through the environment (CLI-JSON run, the engine's opencode
+// adapter): the four XDG_* directories under <home>/.dotai/isolated/opencode, OPENCODE_TEST_HOME
+// at its home unless the variant shares skills, OPENCODE_DISABLE_CLAUDE_CODE=1, the OPENCODE_CONFIG*
+// and OPENCODE_DB variables removed, and --standalone so that run never attaches to a background
+// service that started with another configuration. A delegated OpenCode must get the same.
+test("a delegated OpenCode runs with the isolated install's config, never the user's own", () => {
+  const home = tmp()
+  try {
+    const state = obj => {
+      mkdirSync(join(home, '.dotai'), { recursive: true })
+      writeFileSync(join(home, '.dotai', 'state.json'), typeof obj === 'string' ? obj : JSON.stringify(obj))
+    }
+    const dir = join(home, '.dotai', 'isolated', 'opencode')
+    assert.deepEqual(openCodeIsolation(home), { env: null }, 'no install state: OpenCode runs from its own directories')
+    state({ schema: 'dotai.state/v1', mode: 'replace', harnesses: ['opencode'] })
+    assert.deepEqual(openCodeIsolation(home), { env: null }, "replace install: the pack config is OpenCode's own")
+    state({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['claudecode', 'opencode'] })
+    assert.match(openCodeIsolation(home).error, /isolated.*opencode.*dotai install/s, 'isolated directory missing')
+    mkdirSync(join(dir, 'config', 'opencode'), { recursive: true })
+    const iso = openCodeIsolation(home)
+    assert.deepEqual(iso.env, {
+      XDG_CONFIG_HOME: join(dir, 'config'),
+      XDG_DATA_HOME: join(dir, 'data'),
+      XDG_STATE_HOME: join(dir, 'state'),
+      XDG_CACHE_HOME: join(dir, 'cache'),
+      OPENCODE_TEST_HOME: join(dir, 'home'),
+      OPENCODE_DISABLE_CLAUDE_CODE: '1',
+    })
+    assert.ok(existsSync(join(dir, 'home')), "OpenCode's service starts in OPENCODE_TEST_HOME, so it is created")
+    assert.ok(iso.standalone)
+    state({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['opencode'], sharedSkills: true })
+    assert.equal(openCodeIsolation(home).env.OPENCODE_TEST_HOME, undefined, 'a variant that shares skills keeps the real home')
+    state({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['claudecode'] })
+    assert.match(openCodeIsolation(home).error, /not in the isolated install/)
+    state('{ not json')
+    assert.match(openCodeIsolation(home).error, /cannot read the install state/)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test("the isolated OpenCode environment replaces every inherited pointer, in any case on Windows", () => {
+  const iso = { env: { XDG_CONFIG_HOME: '/i/config', OPENCODE_TEST_HOME: '/i/home', OPENCODE_DISABLE_CLAUDE_CODE: '1' }, standalone: true }
+  const base = { PATH: '/bin', xdg_config_home: '/mine', OPENCODE_TEST_HOME: '/x', OPENCODE_CONFIG: '/c.json', opencode_config_dir: '/c', OPENCODE_DB: '/d', OPENCODE_CONFIG_CONTENT: '{}', OPENCODE_CLI_CONFIG_CONTENT: '{}', XDG_DATA_HOME: '/mine-data', KEEP: '1' }
+  const win = isolatedEnv(base, iso, 'win32')
+  assert.deepEqual(win, { PATH: '/bin', KEEP: '1', XDG_CONFIG_HOME: '/i/config', OPENCODE_TEST_HOME: '/i/home', OPENCODE_DISABLE_CLAUDE_CODE: '1' },
+    'every XDG_* pointer is removed even when the install does not set it, and the config variables are dropped')
+  const linux = isolatedEnv(base, iso, 'linux')
+  assert.equal(linux.xdg_config_home, '/mine', 'outside Windows a variable name keeps its case')
+  assert.equal(linux.OPENCODE_CONFIG, undefined)
+  const shared = isolatedEnv({ OPENCODE_TEST_HOME: '/x' }, { env: { XDG_CONFIG_HOME: '/i/config' } }, 'linux')
+  assert.deepEqual(shared, { XDG_CONFIG_HOME: '/i/config' }, 'an inherited OPENCODE_TEST_HOME is removed when the variant shares skills')
+  assert.deepEqual(isolatedEnv(base, { env: null }, 'win32'), base, 'no isolation: the environment is unchanged')
+})
+
+test('an isolated OpenCode run is standalone', () => {
+  const d = { model: 'opencode/big-pickle', effortFlag: null }
+  const cwd = join(tmpdir(), 'proj')
+  const jobDir = join(cwd, '.dotai', 'jobs', 'x')
+  for (const kind of ['research', 'code']) {
+    const args = buildArgs('opencode', d, 'p', DEFAULTS, jobDir, cwd, kind, { standalone: true })
+    assert.deepEqual(args.slice(0, 2), ['run', '--standalone'], kind)
+    assert.equal(args.at(-1), 'p')
+  }
+  assert.ok(!buildArgs('opencode', d, 'p', DEFAULTS, jobDir, cwd, 'code').includes('--standalone'))
 })
 
 test('the isolation flag comes first in the agy command, as dotai run passes it', () => {

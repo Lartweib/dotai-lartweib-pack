@@ -102,12 +102,23 @@ export function parsePayload(raw) {
 }
 
 // Which shell will run the command: 'posix', 'powershell' or 'windows' (cmd, or PowerShell
-// behind a tool that does not say so). Claude Code's Bash tool runs Git Bash on Windows; for the
-// other harnesses on Windows the environment decides (TODO(trial): OpenCode's shell); agy uses PowerShell.
+// behind a tool that does not say so). Claude Code's Bash tool runs Git Bash on Windows; agy uses
+// PowerShell; OpenCode runs $SHELL, which the hook inherits from it.
 export function shellKind(parsed, env = process.env, platform = process.platform) {
   if (/^powershell$/i.test(parsed.tool ?? '')) return 'powershell'
   if (platform !== 'win32') return 'posix'
   if (parsed.harness === 'claudecode') return 'posix'
+  // OpenCode 2.0.30 on Windows runs $SHELL when it resolves, and otherwise the first found of pwsh,
+  // powershell, Git Bash (next to git on PATH) and %COMSPEC%; MSYSTEM plays no part. Started from
+  // Git Bash (SHELL set) its shell tool ran /usr/bin/bash; with SHELL unset and MSYSTEM still
+  // inherited it ran Windows PowerShell (powershell.exe: `echo $env:OS %OS% $0` printed Windows_NT
+  // and a literal %OS%) (trial 2026-11-19). An OpenCode `shell` setting would override this.
+  if (parsed.harness === 'opencode') {
+    const name = String(env.SHELL ?? '').split(/[\\/]/).at(-1).replace(/\.exe$/i, '').toLowerCase()
+    if (/^(ba|z|da|k)?sh$/.test(name)) return 'posix'
+    if (name === 'cmd') return 'windows'
+    return 'powershell'
+  }
   // agy 1.4.12 runs run_command in PowerShell on Windows even when started from Git Bash
   // (MSYSTEM set): `echo $env:OS %OS%` printed Windows_NT and a literal %OS% (trial, 2026-11-03).
   // Same on agy 1.5.3: Windows PowerShell 5.1, MSYSTEM=MINGW64 inherited (trial, 2026-11-19).

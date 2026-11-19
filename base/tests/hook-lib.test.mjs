@@ -82,9 +82,15 @@ test('the shell kind follows the tool, then the platform and environment', () =>
   assert.equal(shellKind(agy, {}, 'win32'), 'powershell')
   assert.equal(shellKind(agy, { MSYSTEM: 'MINGW64' }, 'win32'), 'powershell') // agy uses PowerShell anyway
   const oc = { harness: 'opencode', tool: 'bash' }
-  assert.equal(shellKind(oc, {}, 'win32'), 'windows')
-  assert.equal(shellKind(oc, { MSYSTEM: 'MINGW64' }, 'win32'), 'posix')
+  // OpenCode 2.0.30 on Windows runs $SHELL, and without it the first of pwsh, powershell, Git
+  // Bash and cmd: SHELL unset with MSYSTEM inherited ran Windows PowerShell (trial 2026-11-19).
+  assert.equal(shellKind(oc, {}, 'win32'), 'powershell')
+  assert.equal(shellKind(oc, { MSYSTEM: 'MINGW64' }, 'win32'), 'powershell')
   assert.equal(shellKind(oc, { SHELL: '/usr/bin/bash' }, 'win32'), 'posix')
+  assert.equal(shellKind(oc, { MSYSTEM: 'MINGW64', SHELL: 'C:\\Program Files\\Git\\bin\\bash.exe' }, 'win32'), 'posix')
+  assert.equal(shellKind(oc, { SHELL: 'pwsh' }, 'win32'), 'powershell')
+  assert.equal(shellKind(oc, { SHELL: 'C:\\Windows\\System32\\cmd.exe' }, 'win32'), 'windows')
+  assert.equal(shellKind({ harness: 'opencode', tool: 'shell' }, { SHELL: '/usr/bin/zsh' }, 'win32'), 'posix')
 })
 
 test('stdin that never closes resolves empty after the idle deadline', async () => {

@@ -87,22 +87,27 @@ class Unquotable extends Error {}
 // with its own (`C:\windows\SYSTEM32\cmd.exe - <command>`) while a command runs; after `title`,
 // Orca lists `<title> [<id>]  - <command>` (observed, Orca 1.4.247). The `exit` at the end closes
 // the tab: the terminal leaves `terminal list` by itself (observed, cmd.exe, Orca 1.4.247).
+// The terminal has Orca's environment, not the delegate's, so the line also sets the isolated
+// install's variables (an isolated OpenCode, delegate-core isolationVars) and clears the others it
+// owns, which Orca's environment may hold.
 function terminalLine(spec, { out, err, done }, label) {
-  const parts = ['agy', ...spec.args]
-  const env = { DOTAI_DELEGATE_CALLER: spec.env.DOTAI_DELEGATE_CALLER, DOTAI_DELEGATE_PARENT: spec.env.DOTAI_DELEGATE_PARENT }
+  const parts = [spec.target ?? 'agy', ...spec.args]
+  const env = { ...spec.isolation?.set, DOTAI_DELEGATE_CALLER: spec.env.DOTAI_DELEGATE_CALLER, DOTAI_DELEGATE_PARENT: spec.env.DOTAI_DELEGATE_PARENT }
+  const unset = spec.isolation?.unset ?? []
   if (WIN) {
     const q = a => {
       if (/["%\r\n]/.test(a)) throw new Unquotable(`cannot type ${JSON.stringify(a)} into cmd.exe`)
       return `"${a}"`
     }
     const title = `title ${label.replace(/[^\w .,:[\]-]/g, ' ')}`
-    const sets = Object.entries(env).map(([k, v]) => `set "${k}=${v}"`)
+    const sets = [...unset.map(k => `set "${k}="`), ...Object.entries(env).map(([k, v]) => `set ${q(`${k}=${v}`)}`)]
     const run = `${parts.map((a, i) => (i ? q(a) : a)).join(' ')} > ${q(out)} 2> ${q(err)}`
     return `cd /d ${q(spec.cwd)} 2> ${q(err)} && (${[title, ...sets, run].join(' & ')}) & type nul > ${q(done)} & exit`
   }
   const q = a => `'${String(a).replace(/'/g, `'\\''`)}'`
   const sets = Object.entries(env).map(([k, v]) => `${k}=${q(v)}`)
-  return `cd ${q(spec.cwd)} 2> ${q(err)} && ${sets.join(' ')} ${parts.map(q).join(' ')} > ${q(out)} 2> ${q(err)}; : > ${q(done)}; exit`
+  const clear = unset.length ? `unset ${unset.join(' ')}; ` : ''
+  return `cd ${q(spec.cwd)} 2> ${q(err)} && ${clear}${sets.join(' ')} ${parts.map(q).join(' ')} > ${q(out)} 2> ${q(err)}; : > ${q(done)}; exit`
 }
 
 // Each attempt has its own folder (delegate-core), so a retry never sees the first attempt's

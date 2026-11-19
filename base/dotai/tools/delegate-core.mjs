@@ -530,7 +530,7 @@ const READ_ONLY = new Set(['research', 'audit'])
 
 // The prompt holds no quote, percent sign or line break, so it survives every shell. A code job
 // writes the long result to a file, which keeps accented characters (agy's -p output loses them,
-// 0022). Research and audit run read-only (agy plan mode, OpenCode without --auto), so the agent
+// 0022). Research and audit run read-only (agy plan mode, the OpenCode plan agent), so the agent
 // cannot write result.md: its reply is the result, saved there by this tool. agy 1.5.3 plan mode
 // read the job folder and kept the accents of its JSON reply (trial 2026-11-19).
 export function buildPrompt(jobDir, kind = 'research') {
@@ -548,31 +548,105 @@ export function buildPrompt(jobDir, kind = 'research') {
 // install, or none, leaves agy on its own directory. Fails closed: an unreadable state, or an
 // isolated install without agy, is an error and agy is not started.
 export function agyIsolation(home = homedir()) {
+  const s = isolatedState(home, 'antigravity-cli', 'agy')
+  if (s.error) return { error: s.error }
+  if (!s.isolated) return { geminiDir: null }
+  const dir = join(home, '.dotai', 'isolated', 'gemini')
+  if (isDir(dir)) return { geminiDir: dir }
+  return { error: `the isolated agy directory ${dir} (gemini) is missing; run dotai install again` }
+}
+
+const isDir = p => {
+  try {
+    return statSync(p).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+// The install state (<home>/.dotai/state.json, CLI-JSON) as it concerns the harness id: not
+// isolated (no install, or a replace install), isolated with it, or an error that fails closed.
+function isolatedState(home, id, name) {
   const file = join(home, '.dotai', 'state.json')
   let state
   try {
     state = JSON.parse(readFileSync(file, 'utf8'))
   } catch (e) {
-    if (e.code === 'ENOENT') return { geminiDir: null }
+    if (e.code === 'ENOENT') return { isolated: false }
     return { error: `cannot read the install state ${file} (${e.code || 'invalid JSON'}); run dotai install again` }
   }
-  if (state?.mode !== 'isolated') return { geminiDir: null }
-  if (!Array.isArray(state.harnesses) || !state.harnesses.includes('antigravity-cli')) {
-    return { error: 'agy is not in the isolated install, so it would run on your own agy config without the pack rules and hooks; install the pack for agy (dotai install) or delegate to another target' }
+  if (state?.mode !== 'isolated') return { isolated: false }
+  if (!Array.isArray(state.harnesses) || !state.harnesses.includes(id)) {
+    return { error: `${name} is not in the isolated install, so it would run on your own ${name} config without the pack rules and hooks; install the pack for ${name} (dotai install) or delegate to another target` }
   }
-  const dir = join(home, '.dotai', 'isolated', 'gemini')
-  try {
-    if (statSync(dir).isDirectory()) return { geminiDir: dir }
-  } catch {}
-  return { error: `the isolated agy directory ${dir} (gemini) is missing; run dotai install again` }
+  return { isolated: true, sharedSkills: state.sharedSkills === true }
+}
+
+// What `dotai run opencode` sets (CLI-JSON run; the engine's opencode adapter, checked on 2.0.30):
+// the pointers, each removed from the inherited environment even when the install does not set it,
+// the fixed variables, and the variables dropped because each points OpenCode at another config.
+const OPENCODE_DIRS = { XDG_CONFIG_HOME: 'config', XDG_DATA_HOME: 'data', XDG_STATE_HOME: 'state', XDG_CACHE_HOME: 'cache' }
+const OPENCODE_FIXED = { OPENCODE_DISABLE_CLAUDE_CODE: '1' }
+const OPENCODE_REMOVED = [...Object.keys(OPENCODE_DIRS), 'OPENCODE_TEST_HOME', ...Object.keys(OPENCODE_FIXED),
+  'OPENCODE_CONFIG', 'OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG_CONTENT', 'OPENCODE_CLI_CONFIG_CONTENT', 'OPENCODE_DB']
+
+// Where the delegated OpenCode reads its config. `dotai run opencode` isolates it through the
+// environment, which a delegation started from a dotai run session does not inherit for another
+// harness (and a Claude Code session never has), so the launch reads the install state as for agy:
+// in an isolated install, the XDG_* directories under <home>/.dotai/isolated/opencode,
+// OPENCODE_TEST_HOME at its home (created, as OpenCode's service starts in it) unless the variant
+// shares skills, OPENCODE_DISABLE_CLAUDE_CODE=1, and --standalone, so that `run` never attaches to
+// a background service started with the user's own config (environment variables do not reach a
+// running service, HARNESS-NOTES). Fails closed like agyIsolation.
+export function openCodeIsolation(home = homedir()) {
+  const s = isolatedState(home, 'opencode', 'OpenCode')
+  if (s.error) return { error: s.error }
+  if (!s.isolated) return { env: null }
+  const dir = join(home, '.dotai', 'isolated', 'opencode')
+  if (!isDir(join(dir, 'config', 'opencode'))) {
+    return { error: `the isolated OpenCode directory ${join(dir, 'config', 'opencode')} (opencode) is missing; run dotai install again` }
+  }
+  const env = Object.fromEntries(Object.entries(OPENCODE_DIRS).map(([k, sub]) => [k, join(dir, sub)]))
+  if (!s.sharedSkills) {
+    const testHome = join(dir, 'home')
+    try {
+      mkdirSync(testHome, { recursive: true })
+    } catch (e) {
+      return { error: `cannot create the isolated OpenCode home ${testHome} (${e.code || e.message})` }
+    }
+    env.OPENCODE_TEST_HOME = testHome
+  }
+  return { env: { ...env, ...OPENCODE_FIXED }, standalone: true }
+}
+
+// The child's environment: base without every variable the isolation owns (by name, and on Windows
+// in any case, as there a variable name has none), then the isolation's own. No isolation: base.
+export function isolatedEnv(base, iso, platform = process.platform) {
+  if (!iso?.env) return base
+  const key = platform === 'win32' ? k => k.toUpperCase() : k => k
+  const removed = new Set(OPENCODE_REMOVED.map(key))
+  const env = Object.fromEntries(Object.entries(base).filter(([k]) => !removed.has(key(k))))
+  return { ...env, ...iso.env }
+}
+
+// The same as variables to type into a shell that has another environment (an Orca terminal):
+// the ones to set, and the others the isolation owns, to clear. null without isolation.
+export function isolationVars(iso) {
+  if (!iso?.env) return null
+  return { set: iso.env, unset: OPENCODE_REMOVED.filter(k => !(k in iso.env)) }
 }
 
 // Auto-approval only for code jobs (0019): research and audit run agy in plan mode and OpenCode
-// without --auto, so neither can edit the project.
-export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research', { geminiDir = null } = {}) {
+// with its plan agent and without --auto, so neither can edit the project with its edit tools.
+export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research', { geminiDir = null, standalone = false } = {}) {
   const readOnly = kind !== 'code'
   if (target === 'opencode') {
-    return ['run', '--model', d.effortFlag ? `${d.model}#${d.effortFlag}` : d.model, '--format', 'json', ...(readOnly ? [] : ['--auto']), prompt]
+    // Without --auto a permission that asks is rejected at once ("This non-interactive run cannot
+    // ask the user for permission"), but OpenCode 2.0.30's default edit permission is allow, so a
+    // run without --auto still wrote files in and outside the project (trial 2026-11-19). The
+    // built-in plan agent denies edit (write, edit, patch); its shell is not restricted, so a
+    // read-only job is read-only for the edit tools, and the shell guard still applies.
+    return ['run', ...(standalone ? ['--standalone'] : []), '--model', d.effortFlag ? `${d.model}#${d.effortFlag}` : d.model, '--format', 'json', ...(readOnly ? ['--agent', 'plan'] : ['--auto']), prompt]
   }
   // First, in one argument, as dotai run passes it (agy needs the absolute path).
   const args = [...(geminiDir ? [`--gemini_dir=${geminiDir}`] : []), '-p', prompt, '--model', d.model]
@@ -743,7 +817,7 @@ async function attempt(job, d, where, opts, ctx, adapter) {
     end('FAIL')
     return { code: 1, text: line(id, 'FAIL', `${shown}: cannot prepare ${attemptDir} (${e.code || e.message}).`) }
   }
-  const iso = target === 'agy' ? agyIsolation(ctx.home) : { geminiDir: null }
+  const iso = target === 'agy' ? agyIsolation(ctx.home) : openCodeIsolation(ctx.home)
   if (iso.error) {
     end('FAIL')
     return { code: 1, text: line(id, 'FAIL', `${shown}: ${iso.error}.`) }
@@ -752,10 +826,10 @@ async function attempt(job, d, where, opts, ctx, adapter) {
   const args = buildArgs(target, d, prompt, cfg, jobDir, cwd, job.kind, iso)
   // The child knows who called it and under which launch, so a nested delegation from agy is
   // restricted (checkRoute) and shows under its parent in the tree.
-  const env = { ...ctx.env, DOTAI_DELEGATE_CALLER: target, DOTAI_DELEGATE_PARENT: id }
+  const env = { ...isolatedEnv(ctx.env, iso), DOTAI_DELEGATE_CALLER: target, DOTAI_DELEGATE_PARENT: id }
   let r
   try {
-    r = await adapter.launch({ exe, target, args, cwd, env, jobDir, attemptDir, id, title: job.title || `delegate ${id}`, timeoutMs: cfg.timeoutMin * 60000 }, ctx)
+    r = await adapter.launch({ exe, target, args, cwd, env, isolation: isolationVars(iso), jobDir, attemptDir, id, title: job.title || `delegate ${id}`, timeoutMs: cfg.timeoutMin * 60000 }, ctx)
   } catch (e) {
     end('FAIL')
     return { code: 1, text: line(id, 'FAIL', `${shown}: ${e.message}`) }

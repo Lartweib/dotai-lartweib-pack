@@ -4,21 +4,56 @@
 // goal), the latest prompts, the files edited and the last assistant message, capped at about
 // 500 tokens. Saved with `engram save --type session_summary`, keyed by `--topic
 // session-summary/<session id>` so a second compaction of the same session updates it.
-// Claude Code sends { session_id, transcript_path, cwd, trigger }; OpenCode's rulesync plugin
-// (experimental.session.compacting) may send no transcript, and then nothing is saved
-// (TODO(trial)). agy has no PreCompact event.
-// The project name is the project root's directory name, lowercased (TODO(trial): match
-// Engram's own project detection).
+// Claude Code sends { session_id, transcript_path, cwd, trigger }. OpenCode gets no compaction
+// hook from the pack (base hooks.jsonc): the plugin rulesync 41.0.0 renders for it registers only
+// the tool guards and session.created (checked in the installed plugin, OpenCode 2.0.30,
+// 2026-11-19); a payload without a transcript saves nothing. agy has no PreCompact event.
+// The project name follows Engram's own detection (engramProject).
 // Secrets never reach the store: every text is redacted (redact) before it is saved, and files
 // the secrets list denies (deny-paths.*.txt, hook-lib denyMatcher) are left out of the list.
 // A summary that cannot be saved is recorded in <pack home>/hook-errors.log, which the next
 // session start reports in one line (hook-lib recordHookError).
 // Never fails the hook. Entry point: `node memory-compact.mjs <harness>`.
-import { openSync, readSync, closeSync, statSync } from 'node:fs'
-import { basename, isAbsolute, relative, resolve } from 'node:path'
+import { openSync, readSync, readFileSync, closeSync, statSync } from 'node:fs'
+import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { cliInvocation, denyMatcher, findOnPath, parsePayload, projectRootOf, readStdin, recordHookError, runCapped } from './hook-lib.mjs'
+
+// The project name as Engram detects it (engramProject): Engram 1.20.0's mem_current_project
+// took the origin remote's repository name, then the git root's directory name, then the working
+// directory's, each lowercased (trial 2026-11-19, scratch data dir). Read from the repository's
+// config file, worktrees included, with no git process.
+export function engramProject(root) {
+  const fallback = basename(root).toLowerCase()
+  const url = originUrl(root)
+  const name = url?.replace(/[\\/]+$/, '').replace(/\.git$/i, '').split(/[\\/:]/).at(-1)
+  return name ? name.toLowerCase() : fallback
+}
+
+function originUrl(root) {
+  try {
+    let gitDir = join(root, '.git')
+    if (statSync(gitDir).isFile()) {
+      const dir = /^gitdir:\s*(.+)$/m.exec(readFileSync(gitDir, 'utf8'))?.[1]?.trim()
+      if (!dir) return null
+      gitDir = resolve(root, dir)
+      try {
+        gitDir = resolve(gitDir, readFileSync(join(gitDir, 'commondir'), 'utf8').trim())
+      } catch {}
+    }
+    let inOrigin = false
+    for (const line of readFileSync(join(gitDir, 'config'), 'utf8').split(/\r?\n/)) {
+      const section = /^\s*\[\s*([^\]]+?)\s*\]/.exec(line)
+      if (section) inOrigin = /^remote\s+"origin"$/i.test(section[1])
+      else if (inOrigin) {
+        const url = /^\s*url\s*=\s*(.+?)\s*$/i.exec(line)?.[1]
+        if (url) return url
+      }
+    }
+  } catch {}
+  return null
+}
 
 const MAX_TRANSCRIPT_BYTES = 8 << 20 // the tail of a longer transcript is enough
 const MAX_SUMMARY = 2000
@@ -139,7 +174,7 @@ async function main() {
     if (!summary) return
     const bin = findOnPath('engram')
     if (!bin) return fail('engram is not on PATH')
-    const project = basename(root).toLowerCase()
+    const project = engramProject(root)
     const args = ['save', `Session summary: ${project} ${new Date().toISOString().slice(0, 10)}`, summary, '--type', 'session_summary', '--project', project]
     if (sessionId) args.push('--topic', `session-summary/${sessionId}`)
     const inv = cliInvocation(bin, args)
