@@ -1,27 +1,73 @@
 # dotai-lartweib-pack
 
-A pack for [dotai](https://github.com/Lartweib/dotai), the cross-harness configuration engine for AI coding agents. A pack is an opinionated setup in dotai's format, rendered by the engine into each harness: think LazyVim on top of Neovim.
+A cost-aware setup for AI coding agents: guard hooks, cheap delegation, CLI-based memory and profiles applied per project.
 
-This one ships a base with a cost policy and guard hooks, two variants for how work is delegated, and ten project profiles. It targets **Claude Code** and **Google Antigravity CLI (agy)**; **OpenCode** is optional and a preview, managed only when you ask for it.
+It is a pack for [dotai](https://github.com/Lartweib/dotai), the cross-harness configuration engine, for **Claude Code** and **Google Antigravity CLI (agy)**, with **OpenCode** as a preview. Think LazyVim on top of Neovim: dotai is the neutral engine, this pack the opinionated distribution, with a base, two variants and ten project profiles.
+
+## Highlights
+
+- **A cost policy in the core rule**: which model and effort for which task, a lightweight task router, and a capped always-on budget ([decision 0046](docs/decisions/0046-split-always-on-budget.md)).
+- **Guard hooks**: `shell-guard` asks before destructive commands and blocks reads of secret paths, `read-guard` caps large artifact reads, and `agent-guard` requires a model and a declared effort on every subagent launch.
+- **Delegation to agy**: the `delegate` skill hands research, audits or bulk mechanical work to agy with an explicit model and effort, within quota; run directly (`standalone`) or in an Orca terminal (`orca`).
+- **Engram memory through its CLI**: a `memory` skill plus `session-start` and `memory-compact` hooks, with no MCP server ([decision 0041](docs/decisions/0041-engram-via-cli-and-hooks.md)).
+- **Profiles detected per project**: dotai's `dotai-profiles` skill proposes profiles from the files the project tracks, and its session-start hook offers it once per project.
+- **No MCP by default**: scripts and CLIs first; the pack ships no MCP servers.
+- **Secrets denied**: permissions deny reads of `.env` files, keys and cloud credentials.
 
 ## Install
 
-You need [dotai](https://github.com/Lartweib/dotai#install), git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
+Requirements: [dotai](https://github.com/Lartweib/dotai#install), git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
 
 ```sh
-# Fetch the pack at a release tag
 dotai pack add https://github.com/Lartweib/dotai-lartweib-pack --ref v0.1.0
-
-# User scope: the base and one variant (see the plan first, then run it again without --dry-run)
-dotai install ~/.dotai/packs/github.com/lartweib/dotai-lartweib-pack --variant standalone --dry-run
-
-# Project scope, from inside a project: one or more profiles
-dotai apply --profile web,ui
+dotai install ~/.dotai/packs/github.com/lartweib/dotai-lartweib-pack --variant standalone
+dotai apply --profile web,ui   # inside a project
 ```
 
-You don't need to pick profiles by hand. dotai's `dotai-profiles` skill proposes them from the files the project tracks, and its session-start hook offers it once per project. `dotai restore` undoes an install, `dotai restore --project` undoes an apply, and `dotai pack update github.com/lartweib/dotai-lartweib-pack` shows what changed before it updates.
+> [!NOTE]
+> No release is tagged yet. `--ref v0.1.0` applies once that tag exists; until then, leave out `--ref` and dotai fetches the default branch.
 
-## What it adds
+The pack requires `claudecode` and `antigravity-cli` (`requires` in `dotai.yaml`): an install without them stops before writing anything. OpenCode is opt-in: pass `--harness claudecode,antigravity-cli,opencode` to `dotai install`. Add `--dry-run` to any `install` or `apply` to see the plan first. Versioning and pinning are in [Versioning and releases](#versioning-and-releases).
+
+## What you get
+
+The manifest, `dotai.yaml`, lists each profile with the description and hints the `dotai-profiles` skill uses to propose it:
+
+```yaml
+profiles:
+  godot:
+    path: profiles/godot
+    description: Godot 4 games in GDScript (project.godot, .gd scripts, .tscn scenes).
+    hints: [project.godot, export_presets.cfg]
+```
+
+A trimmed `dotai install . --variant standalone --dry-run` on a machine with Claude Code and agy and no previous install:
+
+```text
+Install plan · dotai-lartweib-pack 0.1.0 · variant standalone · mode isolated
+root: ~/.dotai/isolated
+note: the preview harness opencode is not managed unless you choose it: [...]; pass --harness opencode to manage it
+
+claudecode · partial isolation · needs a new login
+antigravity-cli · partial isolation · keeps your login
+opencode · preview, not managed
+
+claudecode
+  create     ~/.dotai/isolated/claude/CLAUDE.md
+  create     ~/.dotai/isolated/claude/agents/explorer.md
+  [...]
+  create     ~/.dotai/isolated/claude/settings.json
+             keys: create $schema, create claudeMdExcludes, [...], create hooks, create permissions, create statusLine
+  [...]
+
+tools
+  create     ~/.dotai/tools/delegate-backend.mjs
+  [...]
+  create     ~/.dotai/tools/shell-guard.mjs
+  [...]
+
+57 create, 0 replace, 0 remove, 0 unchanged · dry run, nothing was written
+```
 
 ```mermaid
 flowchart LR
@@ -61,6 +107,19 @@ flowchart LR
   class F profile
   class FW,FA,FG,FO profileItem
 ```
+
+## Everyday commands
+
+| Command | What it does |
+|---|---|
+| `dotai pack add <github-url> [--ref r]` | Fetch the pack into `~/.dotai/packs/` |
+| `dotai install <pack> --variant v --dry-run` | Show the user-scope plan (base and variant); writes nothing |
+| `dotai apply --profile a,b` | Apply profiles to the project in the current directory |
+| `dotai restore` | Undo an install from its backup |
+| `dotai restore --project` | Undo an apply in the current project |
+| `dotai pack update github.com/lartweib/dotai-lartweib-pack` | Show what changed, then update the pack |
+
+The full CLI is in dotai's [CLI-JSON](https://github.com/Lartweib/dotai/blob/main/docs/CLI-JSON.md).
 
 ## How the layers stack
 
@@ -143,17 +202,6 @@ flowchart TB
 
 Blue is the same in both projects; green is what each project chose. Each box is tagged with the layer that adds it (`[base]`, `[variant]`, `[profile]`, `[dotai]` for the engine's own items) and each item with its kind (`[rule]`, `[skill]`, `[subagent]`, `[hook]`, `[tool]`, `[settings]`, `[permissions]`). The pack ships no MCP servers yet; one would be tagged `[mcp]`.
 
-## Base
-
-Installed once per machine, at user scope, in every harness the pack manages.
-
-- **Core rule**: the cost policy (which model and effort for which task), a lightweight task router, and short working rules.
-- **Skills**: `delegate` (hand work to another harness with an explicit model and effort), `autonomous` (plan an unattended run), `memory` (Engram through its CLI), `spec`, and `dotai-analyze` (clean up clashes with what a project already carries).
-- **Subagents**: `explorer`, `researcher`, `worker`, `reviewer`, `judge`, each with its model and effort declared.
-- **Hooks**: `shell-guard` asks before destructive commands and blocks reads of secret paths; `read-guard` caps large artifact reads; `agent-guard` requires a model and a declared effort on every subagent launch; `session-start` and `memory-compact` wire Engram memory.
-- **Statusline** for Claude Code and agy, with quota and delegation state.
-- **Permissions** that deny reads of common secrets (`.env` files, keys, cloud credentials).
-
 ## Variants
 
 | Variant | When | Adds |
@@ -161,9 +209,11 @@ Installed once per machine, at user scope, in every harness the pack manages.
 | `standalone` (default) | No Orca | `delegate-backend`: launches the delegated agent itself and keeps a launch log |
 | `orca` | The `orca` command is on `PATH` | `delegate-backend` that runs each delegation in an Orca terminal and reads its result |
 
+The base's subagents (`explorer`, `researcher`, `worker`, `reviewer`, `judge`) each declare their model and effort; the statusline shows quota and delegation state in Claude Code and agy. Details: [design](docs/DESIGN.md) and [runtime](docs/RUNTIME.md).
+
 ## Profiles
 
-Flat and combinable; each one is applied per project.
+Flat and combinable; each one is applied per project. Each profile's README, at `profiles/<name>/README.md`, lists its external items (tools you install yourself) and what was measured.
 
 | Profile | When | Main items |
 |---|---|---|
@@ -178,8 +228,6 @@ Flat and combinable; each one is applied per project.
 | `tooling` | Go or Python CLIs, JS tool workspaces | `tooling` rule, `tooling-check` lint on edit (agy: on Stop) |
 | `desktop` | Electron apps | `desktop` rule, `desktop-verify` and `desktop-release` skills, `desktop-shot` |
 
-Each profile's README lists its external items (tools you install yourself) and what was measured.
-
 ## Repository layout
 
 | Path | What |
@@ -193,10 +241,12 @@ Each profile's README lists its external items (tools you install yourself) and 
 
 ## Versioning and releases
 
-Releases are SemVer tags `vX.Y.Z` on `main`, and that tag is what you pin with `--ref`. The tag always equals `version` in `dotai.yaml`. Release notes are generated from the Conventional Commits. The pack stays on `0.x` until the engine features it waits for are released; then comes `v1.0.0`. dotai identifies a git pack by its repository, not by the manifest `name` ([decision 0048](docs/decisions/0048-versioning-and-release.md)).
+Releases are SemVer tags `vX.Y.Z` on `main`, pinned with `--ref`; the tag always equals `version` in `dotai.yaml`, and release notes come from the Conventional Commits. The pack stays on `0.x` until the engine features it waits for are released. dotai identifies a git pack by its repository, not by the manifest `name` ([decision 0048](docs/decisions/0048-versioning-and-release.md)).
 
 ## Development
 
-- Tests: `node --test --test-concurrency=2` (Node's built-in runner, no dependencies).
-- Pack check: `dotai validate . --variant standalone` and `--variant orca`.
-- Before tagging, run `node scripts/check.mjs`: tests, `dotai validate` for each variant (`DOTAI` names the binary, else `dotai` on `PATH`), the tree check dotai runs on `pack add`, a privacy guard over tracked files, and the tag against `dotai.yaml`. CI runs the same script.
+Run `node scripts/check.mjs` before tagging: the tests (`node --test`), `dotai validate` for each variant (`DOTAI` names the binary, else `dotai` on `PATH`), the tree check dotai runs on `pack add`, a privacy guard over tracked files, and the tag against `dotai.yaml`.
+
+## Get help
+
+Questions and bug reports go to the [issues](https://github.com/Lartweib/dotai-lartweib-pack/issues).
