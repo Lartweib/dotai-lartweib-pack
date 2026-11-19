@@ -8,7 +8,7 @@ It is a pack for [dotai](https://github.com/Lartweib/dotai), the cross-harness c
 
 - **A cost policy in the core rule**: which model and effort for which task, a lightweight task router, and a capped always-on budget ([decision 0046](docs/decisions/0046-split-always-on-budget.md)).
 - **Guard hooks**: `shell-guard` asks before destructive commands and blocks reads of secret paths, `read-guard` caps large artifact reads, and `agent-guard` requires a model and a declared effort on every subagent launch.
-- **Delegation to agy**: the `delegate` skill hands research, audits or bulk mechanical work to agy with an explicit model and effort, within quota; run directly (`standalone`) or in an Orca terminal (`orca`).
+- **Delegation to agy**: the `delegate` skill hands research, audits or bulk mechanical work to agy with an explicit model and effort, within quota. It runs one way only: agy never delegates back to Claude, so Claude's quota is never spent on agy's behalf ([decision 0009](docs/decisions/0009-directional-delegation-with-quota-config.md)). Run directly (`standalone`) or in an Orca terminal (`orca`).
 - **Engram memory through its CLI**: a `memory` skill plus `session-start` and `memory-compact` hooks, with no MCP server ([decision 0041](docs/decisions/0041-engram-via-cli-and-hooks.md)).
 - **Profiles detected per project**: dotai's `dotai-profiles` skill proposes profiles from the files the project tracks, and its session-start hook offers it once per project.
 - **No MCP by default**: scripts and CLIs first; the pack ships no MCP servers.
@@ -27,7 +27,7 @@ dotai apply --profile web,ui   # inside a project
 > [!NOTE]
 > No release is tagged yet. `--ref v0.1.0` applies once that tag exists; until then, leave out `--ref` and dotai fetches the default branch.
 
-The pack requires `claudecode` and `antigravity-cli` (`requires` in `dotai.yaml`): an install without them stops before writing anything. OpenCode is opt-in: pass `--harness claudecode,antigravity-cli,opencode` to `dotai install`. Add `--dry-run` to any `install` or `apply` to see the plan first. Versioning and pinning are in [Versioning and releases](#versioning-and-releases).
+The pack requires `claudecode` and `antigravity-cli` (`requires` in `dotai.yaml`): the pack is built for Claude Code delegating to agy, so an install without either stops before writing anything. OpenCode is opt-in: pass `--harness claudecode,antigravity-cli,opencode` to `dotai install`. Add `--dry-run` to any `install` or `apply` to see the plan first. Versioning and pinning are in [Versioning and releases](#versioning-and-releases).
 
 ## What you get
 
