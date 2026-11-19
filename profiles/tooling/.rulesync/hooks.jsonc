@@ -1,15 +1,17 @@
 {
   // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
   //
-  // tooling profile hooks (DESIGN 4.3): lint the edited file by extension and marker.
-  // Matchers name each harness's own edit tools, in per-harness blocks (no shell tool here, so
-  // the Claude Code PowerShell tool does not apply).
-  // Timeout 90 s: tooling-check.mjs keeps all checks of one edit within CHECK_BUDGET_MS (75 s).
+  // tooling profile hooks (DESIGN 4.3): lint by extension and marker.
+  //   Claude Code: postToolUse on its edit tools (Edit, Write, MultiEdit; no shell tool, so the
+  //     PowerShell tool does not apply), the file just edited. Timeout 90 s.
+  //   agy: stop, the files the turn changed (`tooling-check.mjs stop`: git's changed tracked and
+  //     untracked files, a tree already checked is skipped). agy 1.5.3 drops {decision} on
+  //     postToolUse ("unknown field decision"; its overwriteResult did not reach the model
+  //     either) and honors it on stop (trial 2026-11-19). Timeout 120 s: two git calls (10 s
+  //     each at most) plus the checks.
+  // tooling-check.mjs keeps all checks of one edit or one stop within CHECK_BUDGET_MS (75 s).
   // agy commands carry no quotes (agy runs hooks through cmd /c; see the godot profile).
-  //   Claude Code: Edit, Write, MultiEdit
-  //   agy: the names `agy plugin validate` (1.4.12) suggests for Claude's Edit and Write,
-  //        plus multi_replace_file_content. agy 1.5.3 sent `edit_file` with args.Path (trial
-  //        2026-11-19), but its PostToolUse drops the {decision} output: see the README TODO(trial).
+  // stop has no matcher; it sits in the agy block so that OpenCode does not get it (below).
   // No OpenCode hook: rulesync 41.0.0 renders a project postToolUse in the OpenCode plugin as a bare
   // `node` call with no stdin payload, no .nothrow().quiet(), no timeout and unquoted paths; it hangs
   // OpenCode's write tool (trial 2026-11-04), and with no payload it could not check anything. The
@@ -29,12 +31,8 @@
   },
   "antigravity-cli": {
     "hooks": {
-      "postToolUse": [
-        {
-          "matcher": "replace_file_content|multi_replace_file_content|edit_file|write_to_file|write_file",
-          "command": "node ${DOTAI_PROJECT_TOOLS}/tooling-check.mjs",
-          "timeout": 90
-        }
+      "stop": [
+        { "command": "node ${DOTAI_PROJECT_TOOLS}/tooling-check.mjs stop", "timeout": 120 }
       ]
     }
   }

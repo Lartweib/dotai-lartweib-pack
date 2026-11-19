@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { MAX_CHECK_SEC, changedFiles, checkTimeoutMs, decideStop, parsePorcelain, pickCheck, realDeps } from '../dotai/tools/web-check.mjs'
+import { MAX_CHECK_SEC, checkTimeoutMs, decideStop, pickCheck, realDeps } from '../dotai/tools/web-check.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const TOOLS = join(HERE, '..', 'dotai', 'tools')
@@ -149,32 +149,6 @@ test('the check timeout is clamped below the hook timeout', async () => {
   const deps = fakeDeps()
   await decideStop({}, { checkTimeoutSec: 9999 }, deps)
   assert.equal(deps.calls[0].timeoutMs, MAX_CHECK_SEC * 1000)
-})
-
-test('porcelain paths are joined to the repository root and filtered to the package', () => {
-  const top = join('/', 'repo')
-  const z = [' M packages/app/src/a.ts', '?? packages/other/b.ts', 'R  packages/app/src/new.ts', 'packages/app/src/old.ts', '?? README.md', ''].join('\0')
-  assert.deepEqual(parsePorcelain(z, top, join(top, 'packages', 'app')), ['src/a.ts', 'src/new.ts'])
-  assert.deepEqual(parsePorcelain(z, top, top).sort(), ['README.md', 'packages/app/src/a.ts', 'packages/app/src/new.ts', 'packages/other/b.ts'])
-})
-
-test('a real monorepo reports only the package changes (skipped without git)', t => {
-  if (spawnSync('git', ['--version']).error) return t.skip('git not installed')
-  const top = mkdtempSync(join(tmpdir(), 'web-mono-'))
-  try {
-    const git = (...a) => spawnSync('git', a, { cwd: top, encoding: 'utf8' })
-    git('init', '-q')
-    const app = join(top, 'packages', 'app')
-    mkdirSync(join(app, 'src'), { recursive: true })
-    mkdirSync(join(top, 'packages', 'other'), { recursive: true })
-    writeFileSync(join(app, 'package.json'), '{}')
-    writeFileSync(join(app, 'src', 'my file.ts'), 'export {}\n')
-    writeFileSync(join(top, 'packages', 'other', 'b.ts'), 'export {}\n')
-    writeFileSync(join(top, 'README.md'), '#\n')
-    assert.deepEqual(changedFiles(app).sort(), ['package.json', 'src/my file.ts'])
-  } finally {
-    rmSync(top, { recursive: true, force: true })
-  }
 })
 
 test('a check past its timeout is killed with its process tree and reported', async () => {

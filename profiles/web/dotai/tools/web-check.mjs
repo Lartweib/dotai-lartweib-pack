@@ -8,12 +8,9 @@
 //     checkTimeoutSec: 120      # clamped to MAX_CHECK_SEC, under the hook's own timeout
 // Trust: web.check runs through the shell. It comes only from .dotai/config.yaml, which is
 // local (never committed), written by onboarding or the user, and read only inside the project.
-import { createHash } from 'node:crypto'
-import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 // The hook lib is a base tool, installed at user scope. Staging writes the user tools
@@ -31,7 +28,7 @@ try {
   process.stderr.write(`web check: cannot load hook-lib.mjs from ${LIB.href} (${e.code || e.message}); no typecheck until the base pack is reinstalled.\n`)
   process.exit(1)
 }
-const { capOutput, loadSection, parsePayload, readStdin, runCapped } = lib
+const { capOutput, changedFiles, fingerprintFiles, loadSection, parsePayload, readStdin, runCapped, stampStore } = lib
 
 const WEB_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|astro|vue|svelte)$/i
 const ASTRO = ['astro.config.mjs', 'astro.config.ts', 'astro.config.js', 'astro.config.cjs', 'astro.config.mts']
@@ -133,33 +130,7 @@ function packageRoot(start) {
   }
 }
 
-// `git status --porcelain -z` paths are relative to the repository root, not to the current
-// directory. Joins them to `toplevel` and keeps those under `root`, relative to it (forward
-// slashes). Renames list the new path first and the old one as the next entry.
-export function parsePorcelain(z, toplevel, root) {
-  const out = []
-  const entries = String(z).split('\0')
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i]
-    if (e.length < 4) continue
-    if (/^[RC]/.test(e)) i++
-    const rel = relative(root, resolve(toplevel, e.slice(3)))
-    if (rel && !rel.startsWith('..') && !isAbsolute(rel)) out.push(rel.replace(/\\/g, '/'))
-  }
-  return out
-}
-
-export function changedFiles(root) {
-  const git = args => spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 10000, windowsHide: true })
-  const top = git(['rev-parse', '--show-toplevel'])
-  if (top.status !== 0) return []
-  const st = git(['status', '--porcelain', '-z', '-uall'])
-  if (st.status !== 0) return []
-  return parsePorcelain(st.stdout, top.stdout.trim(), root)
-}
-
 export function realDeps(root) {
-  const stampFile = join(tmpdir(), `dotai-web-check-${createHash('sha1').update(root).digest('hex').slice(0, 12)}`)
   return {
     exists: f => existsSync(join(root, f)),
     read(f) {
@@ -179,31 +150,8 @@ export function realDeps(root) {
       }
     },
     changed: () => changedFiles(root),
-    fingerprint(files) {
-      const h = createHash('sha1')
-      for (const f of files.sort()) {
-        let m = 'gone'
-        try {
-          m = String(statSync(join(root, f)).mtimeMs)
-        } catch {}
-        h.update(`${f}\0${m}\n`)
-      }
-      return h.digest('hex')
-    },
-    stamp: {
-      get: () => {
-        try {
-          return readFileSync(stampFile, 'utf8')
-        } catch {
-          return null
-        }
-      },
-      set: v => {
-        try {
-          writeFileSync(stampFile, v)
-        } catch {}
-      },
-    },
+    fingerprint: files => fingerprintFiles(root, files),
+    stamp: stampStore('web-check', root),
     async run(cmd, timeoutMs) {
       const r = await runCapped(cmd, [], { cwd: root, shell: true, timeoutMs })
       if (r.timedOut) return { code: 1, out: `${r.out}\ntimed out after ${timeoutMs / 1000} s (web.checkTimeoutSec)` }

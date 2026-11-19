@@ -100,7 +100,7 @@ Flat and combinable; each one is applied per project.
 | `seo` | An SEO audit of a public site | Read-size paths for audit outputs; the suite is a manual install |
 | `cloudflare` | Workers and Pages with wrangler | `cloudflare` rule, `wrangler` and `workers-best-practices` skills (vendored, with their licenses) |
 | `video` | Making and reviewing video | `video` rule, `video-frames` skill, `vframes`, `ffqa` |
-| `tooling` | Go or Python CLIs, JS tool workspaces | `tooling` rule, `tooling-check` lint on edit |
+| `tooling` | Go or Python CLIs, JS tool workspaces | `tooling` rule, `tooling-check` lint on edit (agy: on Stop) |
 | `desktop` | Electron apps | `desktop` rule, `desktop-verify` and `desktop-release` skills, `desktop-shot` |
 
 Each profile's README lists its external items (tools you install yourself) and what was measured.

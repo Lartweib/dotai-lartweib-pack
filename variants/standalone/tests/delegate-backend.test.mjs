@@ -269,7 +269,7 @@ test('a research job runs agy in plan mode and OpenCode without --auto; a code j
     const [research, code, audit, ocCode] = sb.calls()
     const mode = c => c.argv[c.argv.indexOf('--mode') + 1]
     assert.equal(mode(research), 'plan')
-    assert.equal(mode(code), 'accept-edits')
+    assert.equal(mode(code), 'auto', 'code jobs default to auto (pack 0034, update 2026-11-19)')
     assert.ok(!audit.argv.includes('--auto'))
     assert.ok(ocCode.argv.includes('--auto'))
   } finally {
@@ -426,6 +426,30 @@ test('a run with no reply text and no result.md fails instead of reporting OK wi
     assert.equal(agy.code, 1, agy.out + agy.err)
     assert.match(agy.out, /FAIL agy .*no reply/)
     assert.doesNotMatch(oc.out + agy.out, /\(none\)/)
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('under an isolated install the delegated agy gets --gemini_dir; without agy installed there, none runs', () => {
+  const sb = sandbox()
+  try {
+    const s = spec(sb)
+    const state = harnesses => {
+      mkdirSync(join(sb.home, '.dotai'), { recursive: true })
+      writeFileSync(join(sb.home, '.dotai', 'state.json'), JSON.stringify({ schema: 'dotai.state/v1', mode: 'isolated', harnesses }))
+    }
+    const gemini = join(sb.home, '.dotai', 'isolated', 'gemini')
+    mkdirSync(gemini, { recursive: true })
+    state(['claudecode', 'antigravity-cli'])
+    const ok = runTool(TOOL, [...base(s), '--kind', 'code'], sb, CC)
+    assert.equal(ok.code, 0, ok.err + ok.out)
+    assert.equal(sb.calls()[0].argv[0], `--gemini_dir=${gemini}`)
+    state(['claudecode'])
+    const leak = runTool(TOOL, base(s), sb, CC)
+    assert.equal(leak.code, 1, leak.out)
+    assert.match(leak.out, /FAIL .*not in the isolated install/)
+    assert.equal(sb.calls().length, 1, "agy never ran with the user's own config")
   } finally {
     sb.cleanup()
   }

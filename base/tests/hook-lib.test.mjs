@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, utimesSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -10,17 +10,21 @@ import { fileURLToPath } from 'node:url'
 
 import {
   capOutput,
+  changedFiles,
   findConfig,
+  fingerprintFiles,
   formatPreToolUse,
   formatSessionStart,
   isObject,
   numberSettings,
   parsePayload,
+  parsePorcelain,
   projectRootOf,
   readSection,
   readStdin,
   runCapped,
   shellKind,
+  stampStore,
 } from '../dotai/tools/hook-lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -372,5 +376,64 @@ test('a tool whose lib is missing warns on stderr and exits 1, never silent', ()
     }
   } finally {
     rmSync(project, { recursive: true, force: true })
+  }
+})
+
+// Moved from the web profile's web-check (2026-11-19): the tooling profile's agy Stop hook
+// checks the changed files too, so both Stop hooks share one owner.
+test('porcelain paths are joined to the repository root and filtered to the package', () => {
+  const top = join('/', 'repo')
+  const z = [' M packages/app/src/a.ts', '?? packages/other/b.ts', 'R  packages/app/src/new.ts', 'packages/app/src/old.ts', '?? README.md', ''].join('\0')
+  assert.deepEqual(parsePorcelain(z, top, join(top, 'packages', 'app')), ['src/a.ts', 'src/new.ts'])
+  assert.deepEqual(parsePorcelain(z, top, top).sort(), ['README.md', 'packages/app/src/a.ts', 'packages/app/src/new.ts', 'packages/other/b.ts'])
+})
+
+test('a real monorepo reports only the package changes (skipped without git)', t => {
+  if (spawnSync('git', ['--version']).error) return t.skip('git not installed')
+  const top = mkdtempSync(join(tmpdir(), 'hooklib-mono-'))
+  try {
+    const git = (...a) => spawnSync('git', a, { cwd: top, encoding: 'utf8' })
+    git('init', '-q')
+    const app = join(top, 'packages', 'app')
+    mkdirSync(join(app, 'src'), { recursive: true })
+    mkdirSync(join(top, 'packages', 'other'), { recursive: true })
+    writeFileSync(join(app, 'package.json'), '{}')
+    writeFileSync(join(app, 'src', 'my file.ts'), 'export {}\n')
+    writeFileSync(join(top, 'packages', 'other', 'b.ts'), 'export {}\n')
+    writeFileSync(join(top, 'README.md'), '#\n')
+    assert.deepEqual(changedFiles(app).sort(), ['package.json', 'src/my file.ts'])
+  } finally {
+    rmSync(top, { recursive: true, force: true })
+  }
+})
+
+
+test("a fingerprint changes with a file's mtime and marks a deleted file", () => {
+  const root = mkdtempSync(join(tmpdir(), 'hooklib-fp-'))
+  try {
+    writeFileSync(join(root, 'a.go'), 'package a\n')
+    const one = fingerprintFiles(root, ['a.go', 'gone.go'])
+    assert.equal(fingerprintFiles(root, ['gone.go', 'a.go']), one, 'order does not matter')
+    utimesSync(join(root, 'a.go'), new Date(2001, 1, 1), new Date(2001, 1, 1))
+    assert.notEqual(fingerprintFiles(root, ['a.go', 'gone.go']), one)
+    assert.notEqual(fingerprintFiles(root, ['a.go']), fingerprintFiles(root, ['a.go', 'gone.go']))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('a stamp is kept per tool and per root', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'hooklib-stamp-'))
+  try {
+    const a = stampStore('web-check', join(dir, 'p1'), dir)
+    assert.equal(a.get(), null)
+    a.set('fp1')
+    assert.equal(a.get(), 'fp1')
+    assert.equal(stampStore('web-check', join(dir, 'p1'), dir).get(), 'fp1')
+    assert.equal(stampStore('tooling-check', join(dir, 'p1'), dir).get(), null)
+    assert.equal(stampStore('web-check', join(dir, 'p2'), dir).get(), null)
+    assert.ok(readdirSync(dir).some(f => /^dotai-web-check-[0-9a-f]{12}$/.test(f)), 'the web check keeps its stamp name')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 })

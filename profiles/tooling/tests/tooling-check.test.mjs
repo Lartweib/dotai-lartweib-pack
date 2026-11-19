@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { CHECK_BUDGET_MS, checkFile, filePathOf, interpret, planChecks } from '../dotai/tools/tooling-check.mjs'
+import { CHECK_BUDGET_MS, checkFile, checkFiles, decideStop, filePathOf, interpret, planChecks } from '../dotai/tools/tooling-check.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const TOOLS = join(HERE, '..', 'dotai', 'tools')
@@ -170,13 +170,133 @@ test('both wrappers exit 0 and stay silent for a file with no check', () => {
 
 // rulesync 41.0.0 renders the OpenCode project plugin's postToolUse as a bare `node` call with
 // no payload, no nothrow and no timeout: it hangs OpenCode's write tool (trial 2026-11-04).
-test('the hook is wired for Claude Code and agy only, never OpenCode', () => {
+// agy 1.5.3 drops {decision} on PostToolUse but honors it on Stop (trial 2026-11-19), so agy's
+// check runs on Stop over the files the turn changed.
+test('Claude Code lints on PostToolUse, agy on Stop, OpenCode never', () => {
   const hooks = JSON.parse(readFileSync(join(HERE, '..', '.rulesync', 'hooks.jsonc'), 'utf8').replace(/^\s*\/\/.*$/gm, ''))
   assert.deepEqual(hooks.hooks ?? {}, {}, 'no shared hooks')
-  assert.equal(hooks.opencode?.hooks?.postToolUse, undefined, 'OpenCode has no postToolUse')
-  for (const h of ['claudecode', 'antigravity-cli']) {
-    const list = hooks[h]?.hooks?.postToolUse ?? []
-    assert.ok(list.some(e => e.command.includes('/tooling-check.mjs')), h)
+  assert.equal(hooks.opencode, undefined, 'OpenCode has no hook')
+  const cc = hooks.claudecode.hooks
+  assert.deepEqual(Object.keys(cc), ['postToolUse'])
+  assert.match(cc.postToolUse[0].command, /\/tooling-check\.mjs$/)
+  const agy = hooks['antigravity-cli'].hooks
+  assert.deepEqual(Object.keys(agy), ['stop'], 'no agy postToolUse: its output never reaches the model')
+  assert.equal(agy.stop.length, 1)
+  assert.equal(agy.stop[0].matcher, undefined)
+  assert.match(agy.stop[0].command, /^node \S+\/tooling-check\.mjs stop$/)
+  assert.doesNotMatch(agy.stop[0].command, /"/, 'agy commands carry no quotes')
+})
+
+function stopDeps(over = {}) {
+  const runs = []
+  let stamp = null
+  return {
+    runs,
+    exists: markers(['/repo/go.mod', '/repo/pyproject.toml', '/repo/.venv/bin/ruff']),
+    changed: () => [P('a.go'), P('README.md'), P('tool.py')],
+    fingerprint: files => files.join('|'),
+    stamp: { get: () => stamp, set: v => (stamp = v) },
+    run: async check => (runs.push(check.label), { code: 0, stdout: '', stderr: '', out: '' }),
+    ...over,
   }
-  assert.doesNotMatch(hooks['antigravity-cli'].hooks.postToolUse[0].command, /"/, 'agy commands carry no quotes')
+}
+
+test('on Stop, only changed files with a check are checked, once per tree', async () => {
+  const deps = stopDeps()
+  assert.equal(await decideStop({}, deps), null)
+  assert.deepEqual(deps.runs, ['gofmt', 'go vet', 'ruff'])
+  assert.equal(await decideStop({}, deps), null, 'same tree: not checked again')
+  assert.equal(deps.runs.length, 3)
+})
+
+test('on Stop, problems block with a reason naming the file and the check', async () => {
+  const deps = stopDeps({
+    changed: () => [P('p', 'a.go')],
+    run: async c => (c.label === 'gofmt' ? { code: 0, stdout: 'a.go\n', stderr: '', out: 'a.go\n' } : { code: 0, stdout: '', stderr: '', out: '' }),
+  })
+  const r = await decideStop({}, deps)
+  assert.match(r.reason, /^tooling check: .*Fix these, then finish/)
+  assert.ok(r.reason.includes(P('p', 'a.go')), r.reason)
+  assert.match(r.reason, /gofmt: not gofmt-formatted/)
+  // The stamp is set even on a block: an unchanged tree ends the loop (agy has no stop_hook_active).
+  assert.equal(await decideStop({}, deps), null)
+})
+
+test('on Stop, a second stop in the same turn or a turn with no checked files does nothing', async () => {
+  const deps = stopDeps()
+  assert.equal(await decideStop({ stop_hook_active: true }, deps), null)
+  const none = stopDeps({ changed: () => [P('README.md'), P('notes.txt')] })
+  assert.equal(await decideStop({}, none), null)
+  assert.equal(deps.runs.length + none.runs.length, 0)
+})
+
+test('several files share one time budget', async () => {
+  let clock = 0
+  const given = []
+  const run = async (check, timeoutMs) => {
+    given.push(timeoutMs)
+    clock += timeoutMs
+    return { code: 0, stdout: '', stderr: '', out: '' }
+  }
+  const r = await checkFiles([P('p', 'a.go'), P('p', 'b.go'), P('q', 'c.go')], markers(['/repo/go.mod']), run, () => clock)
+  assert.ok(given.reduce((a, b) => a + b, 0) <= CHECK_BUDGET_MS, given.join('+'))
+  assert.match(r, /skipped, the hook's time budget is used up/)
+})
+
+test('go vet runs once per package across the changed files', async () => {
+  const seen = []
+  const run = async check => (seen.push(`${check.label} ${check.args.join(' ')}`), { code: 0, stdout: '', stderr: '', out: '' })
+  assert.equal(await checkFiles([P('p', 'a.go'), P('p', 'b.go'), P('q', 'c.go')], markers(['/repo/go.mod']), run), null)
+  assert.deepEqual(seen.filter(x => x.startsWith('go vet')), ['go vet vet ./p', 'go vet vet ./q'])
+  assert.equal(seen.filter(x => x.startsWith('gofmt')).length, 3)
+})
+
+test('the Stop report of many files is capped at 20 lines', async () => {
+  const run = async () => ({ code: 1, out: 'x.py:1:1: E1\nx.py:2:1: E2' })
+  const files = Array.from({ length: 30 }, (_, i) => P(`f${i}.py`))
+  const r = await checkFiles(files, markers(['/repo/pyproject.toml', '/repo/.venv/bin/ruff']), run)
+  assert.ok(r.split('\n').length <= 23, r)
+  assert.match(r, /more lines cut/)
+})
+
+test('agy Stop in a real git repo: a misformatted Go file blocks once (skipped without git or go)', t => {
+  if (spawnSync('git', ['--version']).error) return t.skip('git not installed')
+  if (spawnSync('gofmt', ['-h']).error) return t.skip('gofmt not installed')
+  const dir = mkdtempSync(join(tmpdir(), 'tooling-stop-'))
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: dir })
+    writeFileSync(join(dir, 'go.mod'), 'module example.com/x\n\ngo 1.21\n')
+    writeFileSync(join(dir, 'notes.md'), '# notes\n')
+    mkdirSync(join(dir, 'p'))
+    writeFileSync(join(dir, 'p', 'p.go'), 'package p\nfunc  F( ) int {return 1}\n')
+    // agy's Stop payload: common fields only, the project in workspacePaths; the hook starts in
+    // <project>/.agents (trial 2026-11-19).
+    mkdirSync(join(dir, '.agents'))
+    const payload = JSON.stringify({ conversationId: 'c1', workspacePaths: [dir] })
+    const stop = () => spawnSync('node', [join(TOOLS, 'tooling-check.mjs'), 'stop'], { cwd: join(dir, '.agents'), input: payload, encoding: 'utf8', timeout: 90000 })
+    const r = stop()
+    assert.equal(r.status, 0, r.stderr)
+    const out = JSON.parse(r.stdout)
+    assert.equal(out.decision, 'block')
+    assert.match(out.reason, /p\.go/)
+    assert.match(out.reason, /gofmt/)
+    const again = stop()
+    assert.equal(again.status, 0, again.stderr)
+    assert.equal(again.stdout, '', 'an unchanged tree is not checked again')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('agy Stop outside a git repository is silent', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'tooling-nogit-'))
+  try {
+    const payload = JSON.stringify({ conversationId: 'c1', workspacePaths: [dir] })
+    const env = { ...process.env, GIT_CEILING_DIRECTORIES: dirname(dir) }
+    const r = spawnSync('node', [join(TOOLS, 'tooling-check.mjs'), 'stop'], { input: payload, encoding: 'utf8', timeout: 30000, env })
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(r.stdout, '')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

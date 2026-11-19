@@ -38,7 +38,10 @@ export const DEFAULTS = Object.freeze({
   timeoutMin: 30,
   maxParallel: 3,
   logMax: 500, // launch log entries per generation (launches.jsonl and launches.jsonl.1)
-  agyMode: 'accept-edits', // code jobs only; research and audit always run in plan mode
+  // Code jobs only; research and audit always run in plan mode. auto, not accept-edits: under -p,
+  // accept-edits refuses every shell command at once (agy 1.5.3); the guards still hold under auto,
+  // since agy honors the hooks' deny with the pack's config (pack 0034, update 2026-11-19).
+  agyMode: 'auto',
 })
 const JOB_MAX_AGE_DAYS = 7 // job folders older than this are pruned when a run starts
 const AGY_MODES = ['accept-edits', 'auto', 'plan']
@@ -537,14 +540,42 @@ export function buildPrompt(jobDir, kind = 'research') {
   return `Read spec.md and do the task it describes. Write the complete result to result.md (UTF-8). Both files are in the job folder. Edit only what the task names. Reply with one short line. job folder: ${jobDir}`
 }
 
+// Where the delegated agy reads its config. `dotai run` starts agy with
+// --gemini_dir=<home>/.dotai/isolated/gemini and sets no variable that a child could see (dotai
+// CLI-JSON, run), so the launch reads the install state (<home>/.dotai/state.json, CLI-JSON):
+// in an isolated install the pack's agy config, with its deny rules and hooks, is only in that
+// directory, and an agy started without the flag would run on the user's own config. A replace
+// install, or none, leaves agy on its own directory. Fails closed: an unreadable state, or an
+// isolated install without agy, is an error and agy is not started.
+export function agyIsolation(home = homedir()) {
+  const file = join(home, '.dotai', 'state.json')
+  let state
+  try {
+    state = JSON.parse(readFileSync(file, 'utf8'))
+  } catch (e) {
+    if (e.code === 'ENOENT') return { geminiDir: null }
+    return { error: `cannot read the install state ${file} (${e.code || 'invalid JSON'}); run dotai install again` }
+  }
+  if (state?.mode !== 'isolated') return { geminiDir: null }
+  if (!Array.isArray(state.harnesses) || !state.harnesses.includes('antigravity-cli')) {
+    return { error: 'agy is not in the isolated install, so it would run on your own agy config without the pack rules and hooks; install the pack for agy (dotai install) or delegate to another target' }
+  }
+  const dir = join(home, '.dotai', 'isolated', 'gemini')
+  try {
+    if (statSync(dir).isDirectory()) return { geminiDir: dir }
+  } catch {}
+  return { error: `the isolated agy directory ${dir} (gemini) is missing; run dotai install again` }
+}
+
 // Auto-approval only for code jobs (0019): research and audit run agy in plan mode and OpenCode
 // without --auto, so neither can edit the project.
-export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research') {
+export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research', { geminiDir = null } = {}) {
   const readOnly = kind !== 'code'
   if (target === 'opencode') {
     return ['run', '--model', d.effortFlag ? `${d.model}#${d.effortFlag}` : d.model, '--format', 'json', ...(readOnly ? [] : ['--auto']), prompt]
   }
-  const args = ['-p', prompt, '--model', d.model]
+  // First, in one argument, as dotai run passes it (agy needs the absolute path).
+  const args = [...(geminiDir ? [`--gemini_dir=${geminiDir}`] : []), '-p', prompt, '--model', d.model]
   if (d.effortFlag) args.push('--effort', d.effortFlag)
   args.push('--output-format', 'json', '--mode', readOnly ? 'plan' : cfg.agyMode)
   const rel = relative(cwd, jobDir)
@@ -712,8 +743,13 @@ async function attempt(job, d, where, opts, ctx, adapter) {
     end('FAIL')
     return { code: 1, text: line(id, 'FAIL', `${shown}: cannot prepare ${attemptDir} (${e.code || e.message}).`) }
   }
+  const iso = target === 'agy' ? agyIsolation(ctx.home) : { geminiDir: null }
+  if (iso.error) {
+    end('FAIL')
+    return { code: 1, text: line(id, 'FAIL', `${shown}: ${iso.error}.`) }
+  }
   const prompt = buildPrompt(jobDir, job.kind)
-  const args = buildArgs(target, d, prompt, cfg, jobDir, cwd, job.kind)
+  const args = buildArgs(target, d, prompt, cfg, jobDir, cwd, job.kind, iso)
   // The child knows who called it and under which launch, so a nested delegation from agy is
   // restricted (checkRoute) and shows under its parent in the tree.
   const env = { ...ctx.env, DOTAI_DELEGATE_CALLER: target, DOTAI_DELEGATE_PARENT: id }

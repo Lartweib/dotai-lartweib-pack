@@ -16,6 +16,7 @@ metadata:
    ```
 
    - Gemini: the level is in the id and must match the effort (`gemini-3.8-flash-low` with `--effort low`). Third-party models (`claude-*`, `gpt-*`): `--effort default`.
+   - `--kind`: `research` (default) and `audit` are read-only; `code` may edit and run commands (agy auto mode, the pack's guards still apply).
    - `--alt` is a model on the other pool, tried when the first is over quota.
    - `--to opencode` with `provider/model`: occasional, never Claude models.
 4. Read the exit code and the one result line:

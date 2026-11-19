@@ -1,6 +1,10 @@
-// PostToolUse hook: quick lint of the file just edited, chosen by extension and by the
-// nearest marker file. Silent when clean or when the tool is not installed;
-// on problems it returns them to the agent, capped at 20 lines.
+// Lint hook, chosen by extension and by the nearest marker file. Silent when clean or when the
+// tool is not installed; on problems it returns them to the agent, capped at 20 lines.
+//   tooling-check.mjs        PostToolUse (Claude Code): the file just edited
+//   tooling-check.mjs stop   Stop (agy): the files the turn changed, by git (changed tracked and
+//                            untracked files), skipping a tree already checked, as web-check does.
+//                            agy 1.5.3 drops {decision} on PostToolUse and honors it on Stop
+//                            (trial 2026-11-19).
 //   .go  + go.mod                      -> gofmt -l <file>, go vet ./<package>
 //   .py  + pyproject.toml / ruff.toml  -> ruff check <file>: the venv's ruff, else
 //                                         `uv run --no-sync ruff` in a uv project, else nothing
@@ -26,10 +30,10 @@ try {
   process.stderr.write(`tooling check: cannot load hook-lib.mjs from ${LIB.href} (${e.code || e.message}); no lint until the base pack is reinstalled.\n`)
   process.exit(1)
 }
-const { capOutput, findOnPath, parsePayload, readStdin, runCapped } = lib
+const { capOutput, changedFiles, findOnPath, fingerprintFiles, parsePayload, readStdin, runCapped, stampStore } = lib
 
-// The hook's timeout is 90 s (.rulesync/hooks.jsonc). All checks of one edit share this budget,
-// so the hook ends, with its report, before the harness kills it.
+// The hooks' timeouts are 90 s and 120 s (.rulesync/hooks.jsonc). All checks of one edit, or of
+// one Stop, share this budget, so the hook ends, with its report, before the harness kills it.
 export const CHECK_BUDGET_MS = 75000
 const PER_CHECK_MS = 60000
 // The biome package's JS entry point: run with this node, no .cmd shim, no shell, no npx.
@@ -118,19 +122,65 @@ async function realRun(check, timeoutMs) {
   return r
 }
 
-export async function checkFile(file, exists = existsSync, run = realRun, clock = Date.now) {
-  const problems = []
+// One budget for all files; an identical check (go vet of one package) runs once.
+export async function checkFiles(files, exists = existsSync, run = realRun, clock = Date.now) {
+  const blocks = []
+  const done = new Set()
   const start = clock()
-  for (const c of planChecks(file, exists)) {
-    const left = CHECK_BUDGET_MS - (clock() - start)
-    if (left < 1000) {
-      problems.push(`${c.label}: skipped, the hook's time budget is used up`)
-      continue
+  for (const file of files) {
+    const problems = []
+    for (const c of planChecks(file, exists)) {
+      const key = JSON.stringify([c.cmd, c.args, c.cwd])
+      if (done.has(key)) continue
+      done.add(key)
+      const left = CHECK_BUDGET_MS - (clock() - start)
+      if (left < 1000) {
+        problems.push(`${c.label}: skipped, the hook's time budget is used up`)
+        continue
+      }
+      const why = interpret(c, await run(c, Math.min(PER_CHECK_MS, left)))
+      if (why) problems.push(`${c.label}: ${why}`)
     }
-    const why = interpret(c, await run(c, Math.min(PER_CHECK_MS, left)))
-    if (why) problems.push(`${c.label}: ${why}`)
+    if (problems.length) blocks.push(`${file}\n${problems.join('\n')}`)
   }
-  return problems.length ? capOutput(`${file}\n${problems.join('\n')}`, 20) : null
+  return blocks.length ? capOutput(blocks.join('\n'), 20) : null
+}
+
+export const checkFile = (file, exists, run, clock) => checkFiles([file], exists, run, clock)
+
+// deps: { exists, changed (absolute paths of existing files), fingerprint, stamp: {get,set}, run, clock }
+export async function decideStop(payload, deps) {
+  if (payload?.stop_hook_active) return null
+  const files = deps.changed().filter(f => planChecks(f, deps.exists).length)
+  if (!files.length) return null
+  const fp = deps.fingerprint(files)
+  if (deps.stamp.get() === fp) return null
+  const r = await checkFiles(files, deps.exists, deps.run, deps.clock)
+  // Set on a block too: agy's Stop has no stop_hook_active, so an unchanged tree ends the loop.
+  deps.stamp.set(fp)
+  return r ? { reason: `tooling check: lint problems in the files this turn changed. Fix these, then finish:\n${r}` } : null
+}
+
+export function realStopDeps(root) {
+  return {
+    exists: existsSync,
+    changed: () => changedFiles(root).map(f => resolve(root, f)).filter(f => existsSync(f)),
+    fingerprint: files => fingerprintFiles(root, files),
+    stamp: stampStore('tooling-check', root),
+    run: realRun,
+    clock: Date.now,
+  }
+}
+
+async function stopMain() {
+  const parsed = parsePayload(await readStdin())
+  let r = null
+  try {
+    r = await decideStop(parsed.payload, realStopDeps(resolve(parsed.cwd)))
+  } catch {
+    r = null
+  }
+  if (r) process.stdout.write(JSON.stringify({ decision: 'block', reason: r.reason }))
 }
 
 async function main() {
@@ -145,10 +195,9 @@ async function main() {
     r = null
   }
   // Claude Code reads {decision: "block", reason} on PostToolUse as feedback to the agent.
-  // agy 1.5.3 rejects this on PostToolUse ("unknown field decision"; its result proto has only
-  // overwriteResult, which did not reach the model either), so agy gets no feedback here
-  // (TODO(trial): pick agy's path, README). OpenCode runs postToolUse without a payload.
+  // agy 1.5.3 rejects it there ("unknown field decision"; its overwriteResult did not reach the
+  // model either), so agy runs `stop` instead. OpenCode runs postToolUse without a payload.
   if (r) process.stdout.write(JSON.stringify({ decision: 'block', reason: `tooling check:\n${r}` }))
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) (process.argv[2] === 'stop' ? stopMain() : main())

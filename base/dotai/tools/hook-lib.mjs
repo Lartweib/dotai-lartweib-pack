@@ -2,9 +2,10 @@
 // No dependencies. A base tool, so it installs once at user scope (~/.dotai/tools/). Profile
 // tools at project scope import it through the user tools directory (dotai engine answer
 // 2026-11-02 to build question 4); one owner, no copies per profile.
+import { createHash } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -915,4 +916,67 @@ export function takeHookError(env = process.env) {
     } catch {}
   }
   return null
+}
+
+// ------------------------------------------------------------------ changed files (Stop hooks)
+
+// The Stop hooks (web-check, and tooling-check for agy) check the files the turn changed: git's
+// changed tracked and untracked files, and skip a tree they already checked, by a fingerprint of
+// those files' mtimes kept in a stamp file. agy's Stop payload has no stop_hook_active, so the
+// stamp alone ends a block loop there (trial 2026-11-19, agy 1.5.3).
+// `git status --porcelain -z` paths are relative to the repository root, not to the current
+// directory. Joins them to `toplevel` and keeps those under `root`, relative to it (forward
+// slashes). Renames list the new path first and the old one as the next entry.
+export function parsePorcelain(z, toplevel, root) {
+  const out = []
+  const entries = String(z).split('\0')
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]
+    if (e.length < 4) continue
+    if (/^[RC]/.test(e)) i++
+    const rel = relative(root, resolve(toplevel, e.slice(3)))
+    if (rel && !rel.startsWith('..') && !isAbsolute(rel)) out.push(rel.replace(/\\/g, '/'))
+  }
+  return out
+}
+
+export function changedFiles(root) {
+  const git = args => spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 10000, windowsHide: true })
+  const top = git(['rev-parse', '--show-toplevel'])
+  if (top.status !== 0) return []
+  const st = git(['status', '--porcelain', '-z', '-uall'])
+  if (st.status !== 0) return []
+  return parsePorcelain(st.stdout, top.stdout.trim(), root)
+}
+
+export function fingerprintFiles(root, files) {
+  const h = createHash('sha1')
+  for (const f of [...files].sort()) {
+    let m = 'gone'
+    try {
+      m = String(statSync(resolve(root, f)).mtimeMs)
+    } catch {}
+    h.update(`${f} ${m}
+`)
+  }
+  return h.digest('hex')
+}
+
+// One stamp per tool and root, in the temp directory: dotai-<tool>-<12 hex of the root>.
+export function stampStore(tool, root, dir = tmpdir()) {
+  const file = join(dir, `dotai-${tool}-${createHash('sha1').update(root).digest('hex').slice(0, 12)}`)
+  return {
+    get: () => {
+      try {
+        return readFileSync(file, 'utf8')
+      } catch {
+        return null
+      }
+    },
+    set: v => {
+      try {
+        writeFileSync(file, v)
+      } catch {}
+    },
+  }
 }

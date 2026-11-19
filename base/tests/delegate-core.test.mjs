@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import {
   DEFAULTS,
+  agyIsolation,
   appendLog,
   buildArgs,
   buildPrompt,
@@ -336,7 +337,8 @@ test('read-only kinds run agy in plan mode and OpenCode without --auto; code kee
     assert.ok(!buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, kind).includes('--auto'), kind)
     assert.match(buildPrompt(jobDir, kind), /read-only.*reply with the complete result/i)
   }
-  assert.equal(mode(buildArgs('agy', d, 'p', cfg, jobDir, cwd, 'code')), 'accept-edits')
+  assert.equal(mode(buildArgs('agy', d, 'p', cfg, jobDir, cwd, 'code')), 'accept-edits', 'agyMode is honored')
+  assert.equal(DEFAULTS.agyMode, 'auto', 'accept-edits refuses every shell command under -p (trial 2026-11-19)')
   assert.ok(buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, 'code').includes('--auto'))
   assert.match(buildPrompt(jobDir, 'code'), /Write the complete result to result\.md/)
   for (const kind of ['research', 'code']) {
@@ -411,4 +413,45 @@ test('parseOpenCodeJson: no text is an empty reply; an error event or a non-zero
   const x = parseOpenCodeJson('', 1, 'boom\n')
   assert.equal(x.status, 'ERROR')
   assert.equal(x.error, 'boom')
+})
+
+// dotai run starts agy with --gemini_dir=<home>/.dotai/isolated/gemini and sets no variable
+// (CLI-JSON run). In an isolated install (the install state, CLI-JSON), the pack's agy config,
+// deny rules and hooks are only there, so a delegated agy must get the same flag.
+test("a delegated agy runs with the isolated install's config, never the user's own", () => {
+  const home = tmp()
+  try {
+    const state = obj => {
+      mkdirSync(join(home, '.dotai'), { recursive: true })
+      writeFileSync(join(home, '.dotai', 'state.json'), typeof obj === 'string' ? obj : JSON.stringify(obj))
+    }
+    const gemini = join(home, '.dotai', 'isolated', 'gemini')
+    assert.deepEqual(agyIsolation(home), { geminiDir: null }, 'no install state: agy runs from its own directory')
+    state({ schema: 'dotai.state/v1', mode: 'replace', harnesses: ['antigravity-cli'] })
+    assert.deepEqual(agyIsolation(home), { geminiDir: null }, "replace install: the pack config is agy's own")
+    state({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['claudecode', 'antigravity-cli'] })
+    assert.match(agyIsolation(home).error, /isolated.*gemini.*dotai install/s, 'isolated directory missing')
+    mkdirSync(gemini, { recursive: true })
+    assert.deepEqual(agyIsolation(home), { geminiDir: gemini })
+    state({ schema: 'dotai.state/v1', mode: 'isolated', harnesses: ['claudecode'] })
+    assert.match(agyIsolation(home).error, /not in the isolated install/)
+    state('{ not json')
+    assert.match(agyIsolation(home).error, /cannot read the install state/)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
+test('the isolation flag comes first in the agy command, as dotai run passes it', () => {
+  const d = { model: 'gemini-3.8-flash-low', effortFlag: 'low' }
+  const cwd = join(tmpdir(), 'proj')
+  const jobDir = join(cwd, '.dotai', 'jobs', 'x')
+  const gemini = join(tmpdir(), 'home', '.dotai', 'isolated', 'gemini')
+  for (const kind of ['research', 'code']) {
+    const args = buildArgs('agy', d, 'p', DEFAULTS, jobDir, cwd, kind, { geminiDir: gemini })
+    assert.equal(args[0], `--gemini_dir=${gemini}`, kind)
+    assert.equal(args.filter(a => a.startsWith('--gemini_dir')).length, 1)
+  }
+  assert.ok(!buildArgs('agy', d, 'p', DEFAULTS, jobDir, cwd, 'code').some(a => a.startsWith('--gemini_dir')))
+  assert.ok(!buildArgs('opencode', { model: 'openai/gpt-5.5', effortFlag: null }, 'p', DEFAULTS, jobDir, cwd, 'code', { geminiDir: gemini }).some(a => a.startsWith('--gemini_dir')))
 })
