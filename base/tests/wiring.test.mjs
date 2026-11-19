@@ -123,9 +123,11 @@ test('permissions.jsonc denies the shell guard secrets per harness', () => {
   const agy = denies('antigravity-cli')
   // agy does not expand `~/`, so its home entries use the engine's `${DOTAI_HOME}`.
   const agyPath = p => p.replace(/\/$/, '').replace(/^~\//, '${DOTAI_HOME}/')
-  for (const p of denied.filter(p => !/[*?[]/.test(p))) assert.ok(agy.includes(agyPath(p)), `agy ${p}`)
+  for (const p of denied.filter(p => p.startsWith('~/') && !/[*?[]/.test(p))) assert.ok(agy.includes(agyPath(p)), `agy ${p}`)
   assert.ok(!agy.some(p => p.startsWith('~/')), 'agy has no ~/ entries')
-  for (const x of ENV_VARIANTS) assert.ok(agy.includes(x), `agy ${x}`)
+  // agy 1.5.3's sandbox (auto mode) refuses a non-absolute deny path and then fails every shell
+  // command, so agy gets absolute entries only; `.env` is left to the read and shell guards.
+  for (const p of agy) assert.ok(p.startsWith('${DOTAI_HOME}/'), `agy entry is absolute: ${p}`)
   // The shell and read guards' list covers every variant through `.env.*`, and keeps the example.
   const match = compilePatterns(lines)
   for (const x of ENV_VARIANTS) assert.equal(match(join(BASE, x), BASE).matched, true, `deny-paths ${x}`)
