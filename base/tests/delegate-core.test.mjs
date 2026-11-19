@@ -345,7 +345,17 @@ test('read-only kinds run agy in plan mode and OpenCode without --auto; code kee
   }
   assert.ok(!buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, 'code').includes('--agent'))
   assert.equal(mode(buildArgs('agy', d, 'p', cfg, jobDir, cwd, 'code')), 'accept-edits', 'agyMode is honored')
-  assert.equal(DEFAULTS.agyMode, 'auto', 'accept-edits refuses every shell command under -p (trial 2026-11-19)')
+  // accept-edits refuses every shell command under -p (agy 1.5.3), and agy 1.5.12 drops --mode
+  // auto for accounts without it ("not available for this account; continuing in the default
+  // mode"), so code jobs skip the prompts and rely on the hooks (trial 2026-11-19).
+  assert.equal(DEFAULTS.agyMode, 'skip-permissions')
+  const skip = buildArgs('agy', d, 'p', { ...DEFAULTS }, jobDir, cwd, 'code')
+  assert.ok(skip.includes('--dangerously-skip-permissions'))
+  assert.ok(!skip.includes('--mode'), 'skip-permissions replaces --mode')
+  const ro = buildArgs('agy', d, 'p', { ...DEFAULTS }, jobDir, cwd, 'research')
+  assert.equal(mode(ro), 'plan')
+  assert.ok(!ro.includes('--dangerously-skip-permissions'), 'read-only jobs never skip permissions')
+  assert.equal(mode(buildArgs('agy', d, 'p', { ...DEFAULTS, agyMode: 'auto' }, jobDir, cwd, 'code')), 'auto', 'auto stays selectable')
   assert.ok(buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, 'code').includes('--auto'))
   assert.match(buildPrompt(jobDir, 'code'), /Write the complete result to result\.md/)
   for (const kind of ['research', 'code']) {

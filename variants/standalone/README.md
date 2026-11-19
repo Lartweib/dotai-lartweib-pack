@@ -26,7 +26,7 @@ One result line per job, and an exit code: `0 OK`, `1 FAIL`, `2 REJECT`, `3 DEFE
 
 A job file holds the same keys as the flags: `{"spec": "task.md", "model": "...", "effort": "...", "alt": "model:effort", "to": "agy", "kind": "code", "title": "..."}`; a relative `spec` is read from the job file's folder. The spec (links resolved) must be inside the project root or the pack home and must not match the secrets list (`deny-paths.*.txt`); anything else is `REJECT`.
 
-`--kind` sets what the agent may do: `research` (the default) and `audit` are read-only (agy `--mode plan`, OpenCode `--agent plan` without `--auto`), and the agent's reply is saved as `result.md`; `code` auto-approves edits and commands (agy `--mode <agyMode>`, `auto` by default; OpenCode `--auto`) and the agent writes `result.md` itself.
+`--kind` sets what the agent may do: `research` (the default) and `audit` are read-only (agy `--mode plan`, OpenCode `--agent plan` without `--auto`), and the agent's reply is saved as `result.md`; `code` auto-approves edits and commands (agy `--dangerously-skip-permissions` by default, or `--mode <agyMode>` when `agyMode` names a mode; OpenCode `--auto`) and the agent writes `result.md` itself.
 
 In an isolated install (`<home>/.dotai/state.json` records `mode: isolated`), the delegated agy gets `--gemini_dir=<home>/.dotai/isolated/gemini` first, as `dotai run` passes it, so it runs on the pack's agy config, deny rules and hooks, never the user's own `~/.gemini`. `dotai run` sets no variable a child could read, so the install state decides, whatever harness the caller is. An isolated install without agy, or an unreadable install state, is `FAIL` before agy starts. A replace install, or none, leaves agy on its own directory, which then holds the pack's config.
 
@@ -54,7 +54,7 @@ delegate:
   timeoutMin: 30        # per job; the process tree is killed at the deadline
   maxParallel: 3        # run --jobs
   logMax: 500           # lines per log generation
-  agyMode: auto         # agy --mode for code jobs: auto, accept-edits or plan
+  agyMode: skip-permissions  # code jobs: skip-permissions (default, --dangerously-skip-permissions), auto, accept-edits or plan (--mode)
 ```
 
 A value that is not a positive number (or a known mode) keeps its default, with one warning on stderr.
@@ -70,7 +70,6 @@ A value that is not a positive number (or a known mode) keeps its default, with 
 ## TODO(trial)
 
 - Quota error text: no real sample yet (`RESOURCE_EXHAUSTED`, "out of quota until" from the binary). agy may fall back to paid AI credits after quota instead of failing (measurement 1); the account is assumed subscription-only (0022).
-- agy 1.5.3 `auto` with the pack's config: every shell command fails with "sandbox configuration error: deny .env: non-absolute file path", from the base agy deny rules on relative `.env` paths (`base/.rulesync/permissions.jsonc`). With those rules removed from the isolated settings, the same job ran `git status` and the shell guard still denied the `~/.ssh` read (trial 2026-11-19). Open: how the base agy block denies `.env` without a relative path.
 
 ## Verified (trial 2026-11-19, OpenCode 2.0.30, Windows)
 
@@ -82,10 +81,15 @@ A value that is not a positive number (or a known mode) keeps its default, with 
 
 ## Verified (trial 2026-11-19, agy 1.5.3)
 
-- `--mode accept-edits` under `-p`: a shell command neither prompts nor hangs; it is refused at once ("permission check failed ... user denied permission to run command"), and agy ends the turn with an empty reply, so a code job that needs one command ends `FAIL no reply and no result.md` in about 8 s. Hence the `auto` default (pack 0034, update 2026-11-19).
-- The delegated agy under an isolated install, with `--gemini_dir`: the pack's hooks load. A code job in `auto` that ran `type <home>.sshdummy_key` got "tool call denied by pre-tool hook: shell guard: this command reads a denied path"; the user's own `~/.gemini` has no hooks, so the deny came from the isolated config. agy honors a hook's deny under `--dangerously-skip-permissions` too.
+- `--mode accept-edits` under `-p`: a shell command neither prompts nor hangs; it is refused at once ("permission check failed ... user denied permission to run command"), and agy ends the turn with an empty reply, so a code job that needs one command ends `FAIL no reply and no result.md` in about 8 s. Hence `auto`, then `skip-permissions` (below).
+- The delegated agy under an isolated install, with `--gemini_dir`: the pack's hooks load. A code job in `auto` that ran `type <home>/.ssh/dummy_key` got "tool call denied by pre-tool hook: shell guard: this command reads a denied path"; the user's own `~/.gemini` has no hooks, so the deny came from the isolated config. agy honors a hook's deny under `--dangerously-skip-permissions` too.
 
 - `--mode plan` under `-p`: agy reads `spec.md` in the job folder and project files, and the reply keeps accents (`ó`, `é`, no U+FFFD) through `--output-format json` into result.md.
 - agy's JSON output (`conversation_id`, `status`, `response`, `duration_seconds`, `num_turns`, `usage`) does not name the model, so `actual-model=...!` never shows for agy. The model is in agy's transcript (`model` on each planner step) and in hook payloads (`modelName`).
 - OpenCode `run --format json --auto`: the event shape; success is the exit code (see the OpenCode section above for the fields).
 - Exhaustion could end at the pool's reset time, which the base statusline now writes (`*_resets`), instead of `exhaustedMinutes`.
+
+## Verified (trial 2026-11-19, agy 1.5.12)
+
+- `--mode auto` is account-gated: agy prints "warning: --mode auto is not available for this account; continuing in the default mode", and the default mode refuses shell commands under `-p`. Hence the `skip-permissions` default (pack 0034, update 2026-11-19).
+- A code job with `--dangerously-skip-permissions` and `--gemini_dir` in a throwaway repo: `git status` ran ("On branch main"), and `Get-Content sub/.env` got "tool call denied by pre-tool hook: shell guard: this command reads a denied path (sub/.env matches .env)". The dummy value was in neither the result nor the transcript, which agy wrote under the isolated `gemini/antigravity-cli/conversations`, not the scratch home's own `~/.gemini`. The agy deny rules now hold absolute paths only, so the relative `.env` sandbox error of agy 1.5.3 is gone.

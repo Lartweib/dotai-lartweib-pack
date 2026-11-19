@@ -38,13 +38,15 @@ export const DEFAULTS = Object.freeze({
   timeoutMin: 30,
   maxParallel: 3,
   logMax: 500, // launch log entries per generation (launches.jsonl and launches.jsonl.1)
-  // Code jobs only; research and audit always run in plan mode. auto, not accept-edits: under -p,
-  // accept-edits refuses every shell command at once (agy 1.5.3); the guards still hold under auto,
-  // since agy honors the hooks' deny with the pack's config (pack 0034, update 2026-11-19).
-  agyMode: 'auto',
+  // Code jobs only; research and audit always run in plan mode. Under -p, accept-edits refuses
+  // every shell command at once (agy 1.5.3), and agy 1.5.12 drops --mode auto for accounts that
+  // lack it, falling back to the default mode, which refuses them too. skip-permissions passes
+  // --dangerously-skip-permissions instead: agy still honors the hooks' deny with the pack's
+  // config (trials 2026-11-19), so the shell and read guards hold (pack 0034, update 2026-11-19).
+  agyMode: 'skip-permissions',
 })
 const JOB_MAX_AGE_DAYS = 7 // job folders older than this are pruned when a run starts
-const AGY_MODES = ['accept-edits', 'auto', 'plan']
+const AGY_MODES = ['accept-edits', 'auto', 'plan', 'skip-permissions']
 
 // ---------- arguments and configuration
 
@@ -651,7 +653,8 @@ export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research'
   // First, in one argument, as dotai run passes it (agy needs the absolute path).
   const args = [...(geminiDir ? [`--gemini_dir=${geminiDir}`] : []), '-p', prompt, '--model', d.model]
   if (d.effortFlag) args.push('--effort', d.effortFlag)
-  args.push('--output-format', 'json', '--mode', readOnly ? 'plan' : cfg.agyMode)
+  const agyMode = readOnly ? 'plan' : cfg.agyMode
+  args.push('--output-format', 'json', ...(agyMode === 'skip-permissions' ? ['--dangerously-skip-permissions'] : ['--mode', agyMode]))
   const rel = relative(cwd, jobDir)
   if (rel.startsWith('..') || isAbsolute(rel)) args.push('--add-dir', jobDir)
   return args

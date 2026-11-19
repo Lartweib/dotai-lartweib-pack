@@ -41,6 +41,22 @@ test('a single delegation opens an Orca terminal running agy -p, then closes it'
   }
 })
 
+test('the typed line runs research in plan mode and a code job with --dangerously-skip-permissions', () => {
+  const sb = sandbox(['agy', 'orca'])
+  try {
+    const s = spec(sb)
+    assert.equal(runTool(TOOL, base(s), sb, CC).code, 0)
+    assert.equal(runTool(TOOL, [...base(s), '--kind', 'code'], sb, CC).code, 0)
+    const [research, code] = sb.calls().filter(c => c.name === 'orca' && c.argv[1] === 'create').map(c => c.argv[c.argv.indexOf('--command') + 1])
+    assert.match(research, /"--mode" "plan"/)
+    assert.doesNotMatch(research, /--dangerously-skip-permissions/)
+    assert.match(code, /--dangerously-skip-permissions/)
+    assert.doesNotMatch(code, /"--mode"/)
+  } finally {
+    sb.cleanup()
+  }
+})
+
 test('the quota error is read from the JSON in the Orca terminal too', () => {
   const sb = sandbox(['agy', 'orca'])
   try {

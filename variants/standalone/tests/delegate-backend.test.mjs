@@ -296,7 +296,9 @@ test('a research job runs agy in plan mode and OpenCode without --auto; a code j
     const [research, code, audit, ocCode] = sb.calls()
     const mode = c => c.argv[c.argv.indexOf('--mode') + 1]
     assert.equal(mode(research), 'plan')
-    assert.equal(mode(code), 'auto', 'code jobs default to auto (pack 0034, update 2026-11-19)')
+    assert.ok(!research.argv.includes('--dangerously-skip-permissions'), 'read-only jobs never skip permissions')
+    assert.ok(code.argv.includes('--dangerously-skip-permissions'), 'code jobs default to skip-permissions (pack 0034, update 2026-11-19)')
+    assert.ok(!code.argv.includes('--mode'), 'skip-permissions replaces --mode')
     assert.ok(!audit.argv.includes('--auto'))
     assert.ok(ocCode.argv.includes('--auto'))
   } finally {
