@@ -1,9 +1,9 @@
 {
-  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
+  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41.0.0 and 43.9.2, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
   //
   // web profile hooks (DESIGN 4.1): one typecheck per turn when web files changed.
   // stop has no matcher, but it sits in per-harness blocks so that OpenCode does not get it:
-  // rulesync 41.0.0 renders a shared stop in the OpenCode project plugin as a
+  // rulesync 41.0.0 and 43.9.2 (staged 2026-11-19) render a shared stop in the OpenCode project plugin as a
   // session.execution.succeeded subscription that runs a bare `node` call with no stdin payload,
   // no .nothrow().quiet(), no timeout and unquoted paths; the same rendering hangs OpenCode's
   // write tool for postToolUse (trial 2026-11-04), and with no payload it could not decide
@@ -15,7 +15,7 @@
   // agy runs hooks through cmd /c: no quotes in its command.
   // TODO(engine): bare `node <path>` command; see the godot profile's hooks.jsonc.
   "version": 1,
-  // Empty but required: rulesync 41 refuses a hooks file without a top-level "hooks" record.
+  // Empty but required: rulesync 41.0.0 and 43.9.2 refuse a hooks file without a top-level "hooks" record.
   "hooks": {},
   "claudecode": {
     "hooks": {

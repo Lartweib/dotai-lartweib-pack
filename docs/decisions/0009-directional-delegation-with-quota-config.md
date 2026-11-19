@@ -41,3 +41,7 @@ Where thresholds and the preferred pool live is partially superseded by [0034](0
 ## Update 2026-11-02: Pi versus OpenCode (measurement 13)
 
 OpenCode stays the optional harness for API credits. Pi (`@earendil-works/pi-coding-agent` 1.5.0, MIT) starts cheaper (~1,450 tokens, 2,920 with the pack base, against OpenCode 2.0.30's ~5.4k of its own plus ~2.4k of user skills), but it has no subagents and no permission model, which the pack's guards and roster need. Whether the engine gets a Pi adapter is an engine question, not a pack one.
+
+## Update 2026-11-19: OpenCode is a compatible preview harness
+
+Engine decision [dotai 0047](../../../dotai/docs/decisions/0047-harness-selection-and-preview-harnesses.md) removed `optional-harnesses`: `harnesses` now lists the harnesses a pack is compatible with, and `requires` those an install cannot do without. `dotai.yaml` lists all three as compatible and requires Claude Code and agy, as `harnesses` did before; OpenCode is compatible and never required. The engine marks OpenCode as a preview, so an install manages it only when `--harness` or the saved choice names it. That keeps the role above: optional, for API credits.

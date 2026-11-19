@@ -1,5 +1,5 @@
 {
-  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
+  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41.0.0 and 43.9.2, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
   //
   // godot profile hooks (pack 0045). The logic lives in .dotai/tools; node is the one
   // runtime every harness here has, so the hooks call the .mjs entry points directly.
@@ -11,8 +11,8 @@
   // Such a block would silently drop a shared preToolUse entry from another layer, which is why
   // the shared "hooks" never hold an event with a matcher.
   //
-  // godot-state (sessionStart) is wired for Claude Code and agy only. rulesync 41.0.0 renders a
-  // project sessionStart in the OpenCode plugin as a bare `node` call with no stdin payload, no
+  // godot-state (sessionStart) is wired for Claude Code and agy only. rulesync 41.0.0 and 43.9.2
+  // (staged 2026-11-19) render a project sessionStart in the OpenCode plugin as a bare `node` call with no stdin payload, no
   // .nothrow().quiet(), no timeout and unquoted paths, and drops its output (the same rendering
   // hangs OpenCode's write tool for postToolUse, trial 2026-11-04): the state would never reach
   // the model, while godot.stateCommand would still run, unbounded by the hook timeout, from an
@@ -26,7 +26,7 @@
   // every harness; quoting fixes Claude Code and OpenCode only. ${DOTAI_TOOL:<name>} in hook
   // commands is planned (engine answer 2026-11-02); for agy a path with spaces cannot work at all.
   "version": 1,
-  // Empty but required: rulesync 41 refuses a hooks file without a top-level "hooks" record.
+  // Empty but required: rulesync 41.0.0 and 43.9.2 refuse a hooks file without a top-level "hooks" record.
   "hooks": {},
   "claudecode": {
     "hooks": {

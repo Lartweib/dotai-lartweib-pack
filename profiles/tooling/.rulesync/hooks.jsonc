@@ -1,5 +1,5 @@
 {
-  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
+  // Convention: a per-harness block replaces the shared hooks of the same event for that harness (rulesync 41.0.0 and 43.9.2, all three harnesses; other events are untouched), so hooks with a matcher live only in per-harness blocks.
   //
   // tooling profile hooks (DESIGN 4.3): lint by extension and marker.
   //   Claude Code: postToolUse on its edit tools (Edit, Write, MultiEdit; no shell tool, so the
@@ -12,7 +12,7 @@
   // tooling-check.mjs keeps all checks of one edit or one stop within CHECK_BUDGET_MS (75 s).
   // agy commands carry no quotes (agy runs hooks through cmd /c; see the godot profile).
   // stop has no matcher; it sits in the agy block so that OpenCode does not get it (below).
-  // No OpenCode hook: rulesync 41.0.0 renders a project postToolUse in the OpenCode plugin as a bare
+  // No OpenCode hook: rulesync 41.0.0 and 43.9.2 (staged 2026-11-19) render a project postToolUse in the OpenCode plugin as a bare
   // `node` call with no stdin payload, no .nothrow().quiet(), no timeout and unquoted paths; it hangs
   // OpenCode's write tool (trial 2026-11-04), and with no payload it could not check anything. The
   // engine does not patch rulesync's output (decision 2026-11-05). Restore the block, matcher
@@ -20,7 +20,7 @@
   // rulesync pipes the payload to these hooks; an upstream report is pending.
   // TODO(engine): bare `node <path>` command; see the godot profile's hooks.jsonc.
   "version": 1,
-  // Empty but required: rulesync 41 refuses a hooks file without a top-level "hooks" record.
+  // Empty but required: rulesync 41.0.0 and 43.9.2 refuse a hooks file without a top-level "hooks" record.
   "hooks": {},
   "claudecode": {
     "hooks": {

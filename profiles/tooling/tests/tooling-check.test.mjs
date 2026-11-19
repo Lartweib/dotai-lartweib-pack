@@ -168,7 +168,7 @@ test('both wrappers exit 0 and stay silent for a file with no check', () => {
   }
 })
 
-// rulesync 41.0.0 renders the OpenCode project plugin's postToolUse as a bare `node` call with
+// rulesync 41.0.0 and 43.9.2 render the OpenCode project plugin's postToolUse as a bare `node` call with
 // no payload, no nothrow and no timeout: it hangs OpenCode's write tool (trial 2026-11-04).
 // agy 1.5.3 drops {decision} on PostToolUse but honors it on Stop (trial 2026-11-19), so agy's
 // check runs on Stop over the files the turn changed.

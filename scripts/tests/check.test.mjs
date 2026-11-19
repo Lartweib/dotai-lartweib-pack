@@ -4,6 +4,7 @@
 // concatenation, so this file never matches the guard itself.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
 import { checkTree, manifestVariants, manifestVersion, parseLsTree, privacyHits, tagProblems } from '../check.mjs'
 
@@ -100,4 +101,17 @@ test('manifest reads: version and variant names from dotai.yaml', () => {
   assert.equal(manifestVersion('name: x\n'), null)
   assert.deepEqual(manifestVariants(y), ['standalone', 'orca'])
   assert.deepEqual(manifestVariants('name: x\n'), [])
+})
+
+test('dotai.yaml: rulesync 43.9.2 and the harness fields of dotai 0047', () => {
+  // The engine embeds the checksums of one rulesync (43.9.2) and removed `optional-harnesses`:
+  // `harnesses` lists the compatible ones, `requires` the subset an install cannot do without.
+  // OpenCode is a preview harness, managed only when chosen, so it is compatible, never required.
+  const y = readFileSync(new URL('../../dotai.yaml', import.meta.url), 'utf8')
+  const field = k => new RegExp(`^${k}:\\s*(.*?)\\s*(#.*)?$`, 'm').exec(y)?.[1]
+  const list = k => (field(k) ?? '').replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean)
+  assert.equal(field('rulesync'), '43.9.2')
+  assert.equal(field('optional-harnesses'), undefined)
+  assert.deepEqual(list('harnesses'), ['claudecode', 'antigravity-cli', 'opencode'])
+  assert.deepEqual(list('requires'), ['claudecode', 'antigravity-cli'])
 })

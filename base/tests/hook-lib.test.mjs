@@ -294,8 +294,8 @@ test('profile hooks follow the agy quoting rule and state the per-harness block 
   }
 })
 
-test('every profile hooks file has the top-level hooks record rulesync 41 requires', () => {
-  // rulesync 41 refuses a hooks file without it ("expected record" at ["hooks"]), which fails
+test('every profile hooks file has the top-level hooks record rulesync requires', () => {
+  // rulesync 41.0.0 and 43.9.2 refuse a hooks file without it ("expected record" at ["hooks"]), which fails
   // the whole apply of that profile (trial 2026-11-19, tooling).
   for (const p of readdirSync(PROFILES)) {
     let text

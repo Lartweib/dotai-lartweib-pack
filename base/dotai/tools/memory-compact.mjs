@@ -5,7 +5,7 @@
 // 500 tokens. Saved with `engram save --type session_summary`, keyed by `--topic
 // session-summary/<session id>` so a second compaction of the same session updates it.
 // Claude Code sends { session_id, transcript_path, cwd, trigger }. OpenCode gets no compaction
-// hook from the pack (base hooks.jsonc): the plugin rulesync 41.0.0 renders for it registers only
+// hook from the pack (base hooks.jsonc): the plugin rulesync 41.0.0 renders for it (and 43.9.2, staged 2026-11-19) registers only
 // the tool guards and session.created (checked in the installed plugin, OpenCode 2.0.30,
 // 2026-11-19); a payload without a transcript saves nothing. agy has no PreCompact event.
 // The project name follows Engram's own detection (engramProject).

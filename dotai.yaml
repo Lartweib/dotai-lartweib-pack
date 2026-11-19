@@ -2,9 +2,9 @@ schema: dotai.pack/v1
 name: dotai-lartweib-pack
 version: 0.1.0
 engine: ">=0.1.0" # the engine has no release yet; only the syntax is checked today
-rulesync: 41.0.0 # the only version whose checksum the engine embeds (dotai 0029)
-harnesses: [claudecode, antigravity-cli]
-optional-harnesses: [opencode] # minimal, occasional use (0009): an install skips it when absent
+rulesync: 43.9.2 # the only version whose checksums the engine embeds (dotai 0029)
+harnesses: [claudecode, antigravity-cli, opencode] # compatible (dotai 0047); OpenCode is a preview, managed only when chosen
+requires: [claudecode, antigravity-cli] # an install stops without them; OpenCode is minimal, occasional use (0009)
 
 profiles: # set from 0044. dotai's dotai-profiles skill knows each profile only by its description
   # and hints (dotai 0045, pack 0047). Hints are path.Match globs over the whole repo-relative path

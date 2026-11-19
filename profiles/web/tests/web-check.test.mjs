@@ -174,7 +174,7 @@ test('the entry point and both wrappers exit 0 on an empty payload', () => {
   }
 })
 
-// rulesync 41.0.0 renders a project stop hook for OpenCode as a bare `node` call with no payload,
+// rulesync 41.0.0 and 43.9.2 render a project stop hook for OpenCode as a bare `node` call with no payload,
 // no nothrow and no timeout (trial 2026-11-04), so stop sits in the Claude Code and agy blocks.
 test('the stop hook is wired for Claude Code and agy only, never OpenCode', () => {
   const hooks = JSON.parse(readFileSync(join(HERE, '..', '.rulesync', 'hooks.jsonc'), 'utf8').replace(/^\s*\/\/.*$/gm, ''))

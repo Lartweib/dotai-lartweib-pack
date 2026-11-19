@@ -97,7 +97,7 @@ test('settings wire the statusline per harness: node directly for Claude Code, t
 })
 
 // Secrets (DESIGN §3, 0038): permissions.jsonc denies the deny-paths.base.txt patterns for each
-// harness in the form rulesync 41.0.0 translates. Claude Code reads gitignore patterns with no `!`
+// harness in the form rulesync passes through (41.0.0, 43.9.2). Claude Code reads gitignore patterns with no `!`
 // (deny wins over allow), so `.env.*` is spelled out per file and `.env.example` stays readable;
 // OpenCode reads wildcards over the path, last match wins; agy takes plain paths only, no globs.
 const ENV_VARIANTS = ['.env.local', '.env.prod', '.env.dev', '.env.preview', '.env.production', '.env.development', '.env.staging', '.env.test']
