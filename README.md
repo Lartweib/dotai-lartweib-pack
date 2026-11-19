@@ -105,6 +105,44 @@ flowchart TB
 
 User and project scope write separate files; where both set something, the harness decides which wins (Claude Code, for one, prefers the project).
 
+### Two projects, one install
+
+The user scope is installed once and every project gets it; what changes from one project to the next is only the profiles applied there.
+
+```mermaid
+flowchart TB
+  U["<b>User scope, installed once</b><br/>base + standalone variant"]
+
+  subgraph A["Project A · a Next.js site on Cloudflare Workers"]
+    direction TB
+    AS["<b>Shared</b><br/>core rule · delegate · memory · spec<br/>guards · subagents · statusline"]
+    AW["<b>web</b><br/>web rule · web-check on stop"]
+    AU["<b>ui</b><br/>lartweib-taste · browser-tooling · ui-shot"]
+    AC["<b>cloudflare</b><br/>cloudflare rule · wrangler · workers-best-practices"]
+    AS --- AW --- AU --- AC
+  end
+
+  subgraph B["Project B · a Godot 4 game"]
+    direction TB
+    BS["<b>Shared</b><br/>core rule · delegate · memory · spec<br/>guards · subagents · statusline"]
+    BG["<b>godot</b><br/>godot-gdscript · godot-guard<br/>godot-run · godot-state"]
+    BO["<b>autonomous-orchestra</b><br/>orchestra skill · orchestra-lanes"]
+    BS --- BG --- BO
+  end
+
+  U --> AS
+  U --> BS
+
+  classDef user fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef shared fill:#dbeafe,stroke:#1d4ed8,color:#0f172a
+  classDef profile fill:#dcfce7,stroke:#15803d,color:#0f172a
+  class U user
+  class AS,BS shared
+  class AW,AU,AC,BG,BO profile
+```
+
+Blue is the same in both projects; green is what each project chose.
+
 ## Base
 
 Installed once per machine, at user scope, in every harness the pack manages.
