@@ -44,6 +44,22 @@ flowchart LR
   F --> FA["<b>Apps and tools</b><br/>desktop · tooling · video"]
   F --> FG["<b>Games</b><br/>godot"]
   F --> FO["<b>Long runs</b><br/>autonomous-orchestra"]
+
+  classDef pack fill:#334155,stroke:#0f172a,color:#ffffff
+  classDef base fill:#1d4ed8,stroke:#1e3a8a,color:#ffffff
+  classDef baseItem fill:#dbeafe,stroke:#1d4ed8,color:#0f172a
+  classDef variant fill:#b45309,stroke:#78350f,color:#ffffff
+  classDef variantItem fill:#fef3c7,stroke:#b45309,color:#0f172a
+  classDef profile fill:#15803d,stroke:#14532d,color:#ffffff
+  classDef profileItem fill:#dcfce7,stroke:#15803d,color:#0f172a
+
+  class P pack
+  class B base
+  class BR,BS,BA,BH,BX baseItem
+  class V variant
+  class VS,VO variantItem
+  class F profile
+  class FW,FA,FG,FO profileItem
 ```
 
 ## Base
