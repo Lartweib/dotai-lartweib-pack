@@ -25,48 +25,25 @@ You don't need to pick profiles by hand. dotai's `dotai-profiles` skill proposes
 
 ```mermaid
 flowchart LR
-  P["dotai-lartweib-pack"]
+  P(["dotai-lartweib-pack"])
 
-  subgraph Base["Base - user scope, always"]
-    R["rule: core - cost policy, task router"]
-    S1["skill: delegate - send work to agy"]
-    S2["skill: autonomous - long runs"]
-    S3["skill: dotai-analyze - clean old config"]
-    S4["skill: memory - Engram"]
-    S5["skill: spec - specs"]
-    A1["agents: explorer, researcher, worker"]
-    A2["agents: reviewer, judge"]
-    H1["hook: session-start - memory notice"]
-    H2["hooks: shell-guard, read-guard - secrets"]
-    H3["hook: agent-guard - model and effort"]
-    H4["hook: memory-compact - before compaction"]
-    ST["statusline: quota"]
-    PM["permissions: deny secret reads"]
-  end
+  P --> B["Base<br/><i>user scope, always</i>"]
+  P --> V["Variants<br/><i>user scope, pick one</i>"]
+  P --> F["Profiles<br/><i>per project, combinable</i>"]
 
-  subgraph Variants["Variants - user scope, pick one"]
-    VS["standalone: delegate-backend"]
-    VO["orca: delegate-backend via Orca"]
-  end
+  B --> BR["<b>Rule</b><br/>core: cost policy, task router"]
+  B --> BS["<b>Skills</b><br/>delegate · autonomous · memory<br/>spec · dotai-analyze"]
+  B --> BA["<b>Subagents</b><br/>explorer · researcher · worker<br/>reviewer · judge"]
+  B --> BH["<b>Hooks</b><br/>shell-guard · read-guard · agent-guard<br/>session-start · memory-compact"]
+  B --> BX["<b>Statusline · permissions</b><br/>quota · secret reads denied"]
 
-  subgraph Profiles["Profiles - project scope, combinable"]
-    GD["godot: gdscript skill, guard, run, state"]
-    WB["web: typecheck on stop"]
-    UI["ui: taste, browser skills, ui-shot"]
-    TL["tooling: lint on edit"]
-    CF["cloudflare: wrangler skills"]
-    VD["video: video-frames, vframes, ffqa"]
-    DT["desktop: verify, release, desktop-shot"]
-    AO["autonomous-orchestra: lanes"]
-    SE["seo: audit settings"]
-  end
+  V --> VS["<b>standalone</b><br/>launches the agent itself"]
+  V --> VO["<b>orca</b><br/>runs it in an Orca terminal"]
 
-  P --> R & S1 & S2 & S3 & S4 & S5
-  P --> A1 & A2
-  P --> H1 & H2 & H3 & H4
-  P --> ST & PM
-  P --> VS & VO
-  P --> GD & WB & UI & TL & CF & VD & DT & AO & SE
+  F --> FW["<b>Web</b><br/>web · ui · seo · cloudflare"]
+  F --> FA["<b>Apps and tools</b><br/>desktop · tooling · video"]
+  F --> FG["<b>Games</b><br/>godot"]
+  F --> FO["<b>Long runs</b><br/>autonomous-orchestra"]
 ```
 
 ## Base
