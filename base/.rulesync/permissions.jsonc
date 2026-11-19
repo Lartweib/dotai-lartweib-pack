@@ -17,6 +17,9 @@
   //                shell command ("deny .env: non-absolute file path", trial 2026-11-19). So `.env`
   //                and the glob entries are left to the read and shell guards, which agy enforces
   //                at any depth and even with --dangerously-skip-permissions (trial 2026-11-19).
+  //                The read guard takes every agy tool that returns file content (reads, views,
+  //                content searches, run_workflow), and both guards deny a content search whose
+  //                scope holds a denied file (agy 1.5.12, trial 2026-11-19; pack 0038).
   //                agy does not expand `~/` (agy 1.4.12, trial 2026-11-03), so its home paths
   //                use `${DOTAI_HOME}`, which the engine turns into the real home directory with
   //                forward slashes while staging (dotai PACK-FORMAT); read-guard covers them too.

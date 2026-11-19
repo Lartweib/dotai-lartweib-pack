@@ -52,7 +52,11 @@ test('each harness gets its guards with its own tool names', () => {
   assert.equal(find('opencode', 'preToolUse', 'shell-guard').matcher, 'bash')
   assert.equal(find('opencode', 'preToolUse', 'read-guard').matcher, '^read$')
   assert.equal(find('antigravity-cli', 'preToolUse', 'shell-guard').matcher, 'run_command')
-  assert.ok(find('antigravity-cli', 'preToolUse', 'read-guard'))
+  // agy's matcher is a regular expression (".*" matched every tool, trial 2026-11-19): the read
+  // guard takes every tool that returns file content, and none that returns names only.
+  const agyRead = new RegExp(find('antigravity-cli', 'preToolUse', 'read-guard').matcher)
+  for (const t of ['read_file', 'view_file', 'view_file_outline', 'view_code_item', 'grep_search', 'codebase_search', 'code_search', 'search_files', 'run_workflow']) assert.match(t, agyRead, t)
+  for (const t of ['list_dir', 'find_by_name', 'file_search', 'run_command', 'write_file', 'edit_file', 'read_file_x', 'x_read_file']) assert.doesNotMatch(t, agyRead, t)
   for (const h of ['claudecode', 'antigravity-cli']) assert.ok(find(h, 'sessionStart', 'session-start'), h)
   assert.ok(find('claudecode', 'preCompact', 'memory-compact'))
   assert.equal(blocks.opencode.sessionStart, undefined, 'OpenCode drops sessionStart output')

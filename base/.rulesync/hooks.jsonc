@@ -5,8 +5,10 @@
   // harness here has, so the hooks call the .mjs entry points directly (a PowerShell wrapper
   // would add its start-up time to every tool call). Each command names its harness as the
   // first argument, so a tool never guesses it from the payload shape.
-  //   shell-guard    destructive commands ask, denied paths are denied (pack 0038)
-  //   read-guard     denied paths are refused in every harness (0038), and full reads of large
+  //   shell-guard    destructive commands ask, denied paths are denied, and so is a recursive
+  //                  content search whose scope holds one (pack 0038)
+  //   read-guard     denied paths are refused in every harness, and in agy also through its
+  //                  content searches and run_workflow (0038), and full reads of large
   //                  artifacts (0039)
   //   agent-guard    model on every launch, declared effort, Opus allowlist (0030, 0037), and
   //                  allowed launches appended to the delegate launch log;
@@ -24,6 +26,12 @@
   // unanchored, case-sensitive regex; OpenCode 2.0.30 names the shell tool `shell`, which the
   // plugin aliases to `bash`); agy "run_command" and "read_file" (agy 1.4.12, real payloads,
   // trial 2026-11-03; its hooks docs say view_file, which never fires).
+  // agy's matcher is a regular expression (".*" fired on every tool, agy 1.5.12, trial
+  // 2026-11-19), so the read guard takes, anchored, every agy tool that returns file content:
+  // the reads and views, the content searches, and run_workflow (a script, which agy used for a
+  // content search). Only read_file and run_workflow were offered to the model in that trial; the
+  // others are names from the agy binary, guarded in case a version or mode offers them. Listing
+  // tools (list_dir, find_by_name, file_search) return names only and are left out on purpose.
   //
   // Quoting (PACK-FORMAT, HARNESS-NOTES): Claude Code (Git Bash) and OpenCode (Bun Shell) get the
   // path in double quotes; agy runs commands through `cmd /c`, where every `"` arrives as `\"`,
@@ -64,7 +72,7 @@
       ],
       "preToolUse": [
         { "matcher": "run_command", "command": "node ${DOTAI_TOOLS}/shell-guard.mjs antigravity", "timeout": 10 },
-        { "matcher": "read_file", "command": "node ${DOTAI_TOOLS}/read-guard.mjs antigravity", "timeout": 10 }
+        { "matcher": "^(read_file|view_file|view_file_outline|view_code_item|grep_search|codebase_search|code_search|search_files|run_workflow)$", "command": "node ${DOTAI_TOOLS}/read-guard.mjs antigravity", "timeout": 10 }
       ]
     }
   }

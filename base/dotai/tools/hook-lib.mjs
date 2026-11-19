@@ -789,6 +789,57 @@ export function denyMatcher(cwd, { env = process.env, home = homedir() } = {}) {
   return { match: abs => compiled(abs, root), root, lines }
 }
 
+// Content searches (pack 0038): a search over a directory returns the matching lines of every
+// file in it, so a scope that holds a denied file reads it. Shared by the read guard (agy's
+// search tools and run_workflow) and the shell guard (rg, grep -r, findstr /s, listing pipelines).
+// .git and node_modules are skipped: neither holds the user's own secrets files, and
+// node_modules alone can pass the entry cap.
+const SEARCH_SKIP_DIRS = new Set(['.git', 'node_modules'])
+export const SEARCH_MAX_ENTRIES = 50000
+
+// The first file under dir (dir itself when it is a file) that denied(abs) matches and
+// keep(abs, dir) accepts; 'too-large' past maxEntries; null when there is none or dir is
+// missing (the tool's error to report).
+export function firstDeniedUnder(dir, { denied, keep = () => true, maxEntries = SEARCH_MAX_ENTRIES }) {
+  let st
+  try {
+    st = statSync(dir)
+  } catch {
+    return null
+  }
+  if (!st.isDirectory()) return denied(dir)?.matched ? dir : null
+  const stack = [dir]
+  let seen = 0
+  while (stack.length) {
+    const d = stack.pop()
+    let ents
+    try {
+      ents = readdirSync(d, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const e of ents) {
+      if (++seen > maxEntries) return 'too-large'
+      const abs = join(d, e.name)
+      if (e.isDirectory()) {
+        if (!SEARCH_SKIP_DIRS.has(e.name)) stack.push(abs)
+      } else if (denied(abs)?.matched && keep(abs, dir)) return abs
+    }
+  }
+  return null
+}
+
+// Whether an include glob names a denied file outright: with its wildcards dropped, `*.env*`
+// and `.env*` read `.env`, and `*.pem` reads `.pem`; `*.ts` names nothing denied.
+export function includeNamesDenied(glob, scope, denied) {
+  const g = String(glob).replace(/^!/, '')
+  if (g !== String(glob)) return null
+  const bare = g.replace(/[*?]+|\[[^\]]*\]/g, '').split(/[\\/]/).filter(Boolean).pop()
+  if (!bare) return null
+  const hit = denied(join(scope, bare))
+  return hit?.matched ? hit : null
+}
+
 // ------------------------------------------------------------------ nested config, frontmatter
 
 const scalar = raw => {

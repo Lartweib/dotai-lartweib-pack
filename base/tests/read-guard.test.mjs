@@ -7,9 +7,9 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { decide, readRequest } from '../dotai/tools/read-guard.mjs'
+import { decide, decideSearch, readRequest, searchRequest } from '../dotai/tools/read-guard.mjs'
 import { compilePatterns } from '../dotai/tools/hook-lib.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -107,6 +107,107 @@ test('a denied path is refused in every harness, whatever its size or range; .en
     assert.equal(ok.stdout, '')
     const gone = runHook({ tool_name: 'Read', tool_input: { file_path: join(dir, 'secrets', '.env') }, cwd: dir }, 'claudecode')
     assert.equal(gone.json?.hookSpecificOutput.permissionDecision, 'deny', 'denied even before it exists')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('agy outline and code-item reads give their path and count as ranges', () => {
+  assert.deepEqual(readRequest({ toolCall: { name: 'view_file_outline', args: { AbsolutePath: 'c' } } }), { path: 'c', partial: true })
+  assert.deepEqual(readRequest({ toolCall: { name: 'view_code_item', args: { File: 'c', NodePaths: ['A.b'] } } }), { path: 'c', partial: true })
+})
+
+test('agy content searches and scripts give their scope, includes and script; other tools none', () => {
+  const tc = (name, args) => ({ toolCall: { name, args } })
+  assert.deepEqual(searchRequest(tc('grep_search', { SearchPath: 'src', Query: 'K', Includes: ['*.js'] })), { kind: 'search', scopes: ['src'], includes: ['*.js'], script: '' })
+  assert.deepEqual(searchRequest(tc('grep_search', { SearchPathUri: 'file:///w/a', Query: 'K' })), { kind: 'search', scopes: ['file:///w/a'], includes: [], script: '' })
+  assert.deepEqual(searchRequest(tc('codebase_search', { Query: 'K', TargetDirectories: ['a', 'b'] })), { kind: 'search', scopes: ['a', 'b'], includes: [], script: '' })
+  assert.deepEqual(searchRequest(tc('search_files', { Query: 'K' })), { kind: 'search', scopes: [], includes: [], script: '' })
+  assert.deepEqual(searchRequest(tc('run_workflow', { Description: 'd', Script: 'print(1)' })), { kind: 'script', scopes: [], includes: [], script: 'print(1)' })
+  for (const name of ['read_file', 'view_file', 'list_dir', 'run_command']) assert.equal(searchRequest(tc(name, { Path: 'x' })), null, name)
+  assert.equal(searchRequest({ tool_name: 'Grep', tool_input: { pattern: 'K' } }), null)
+})
+
+function secretsProject() {
+  const dir = mkdtempSync(join(tmpdir(), 'search guard '))
+  mkdirSync(join(dir, '.git'))
+  mkdirSync(join(dir, 'sub'))
+  mkdirSync(join(dir, 'src'))
+  writeFileSync(join(dir, 'sub', '.env'), 'K=1\n')
+  writeFileSync(join(dir, 'src', 'app.js'), 'export {}\n')
+  writeFileSync(join(dir, 'src', '.env.example'), 'K=\n')
+  return dir
+}
+
+const denyFor = dir => {
+  const m = compilePatterns(['.env', '.env.*', '!.env.example'])
+  return abs => m(abs, dir)
+}
+
+test('a content search is denied when its scope holds a denied file, unless the includes leave it out', () => {
+  const dir = secretsProject()
+  try {
+    const opts = { cwd: dir, workspaces: [dir], denied: denyFor(dir) }
+    const s = (scopes, includes = []) => decideSearch({ kind: 'search', scopes, includes, script: '' }, opts)
+    const root = s([dir])
+    assert.equal(root?.decision, 'deny')
+    assert.match(root.reason, /sub[\\/]\.env/)
+    assert.match(root.reason, /do not retry with another reader/)
+    assert.equal(s([])?.decision, 'deny', 'no scope is the workspace')
+    assert.equal(s(['sub'])?.decision, 'deny', 'a relative scope resolves against the cwd')
+    assert.equal(s([join(dir, 'sub', '.env')])?.decision, 'deny', 'the denied file itself')
+    assert.equal(s([pathToFileURL(dir).href])?.decision, 'deny', 'a file:// scope')
+    assert.equal(s([dir], ['*.js']), null, 'the includes leave the secret out')
+    assert.equal(s([join(dir, 'src')]), null, 'no denied file there (.env.example is allowed)')
+    assert.equal(s([join(dir, 'src')], ['.env'])?.decision, 'deny', 'an include that names a denied file')
+    assert.equal(s([join(dir, 'src')], ['*.env*'])?.decision, 'deny', 'a wildcard include that names a denied file')
+    assert.equal(s([join(dir, 'src')], ['*.ts']), null, 'a wildcard include that names none')
+    assert.equal(s([join(dir, 'gone')]), null, 'a missing scope is the tool error')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a scope too large to check is denied, with advice to narrow it', () => {
+  const dir = secretsProject()
+  try {
+    const d = decideSearch({ kind: 'search', scopes: [join(dir, 'src')], includes: [], script: '' }, { cwd: dir, workspaces: [dir], denied: denyFor(dir), maxEntries: 1 })
+    assert.equal(d?.decision, 'deny')
+    assert.match(d.reason, /narrow/i)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a script that names a denied path, or walks a tree holding one, is denied', () => {
+  const dir = secretsProject()
+  const clean = mkdtempSync(join(tmpdir(), 'search clean '))
+  try {
+    writeFileSync(join(clean, 'a.txt'), 'x\n')
+    const run = (script, cwd = dir) => decideSearch({ kind: 'script', scopes: [], includes: [], script }, { cwd, workspaces: [cwd], denied: denyFor(cwd) })
+    const walk = 'import os\nfor root, dirs, files in os.walk("."):\n    for f in files:\n        print(open(os.path.join(root, f)).read())\n'
+    assert.equal(run(walk)?.decision, 'deny')
+    assert.equal(run("print(open('sub/.env').read())")?.decision, 'deny')
+    assert.equal(run('from pathlib import Path\nprint([p.read_text() for p in Path(".").rglob("*")])')?.decision, 'deny')
+    assert.equal(run("print(open('src/app.js').read())"), null)
+    assert.equal(run('print(1 + 1)'), null)
+    assert.equal(run(walk, clean), null, 'no denied file in the workspace')
+    assert.equal(run("print(open('.env').read())", clean)?.decision, 'deny', 'named even before it exists')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(clean, { recursive: true, force: true })
+  }
+})
+
+test('the agy hook denies a content search and a script over a denied file', () => {
+  const dir = secretsProject()
+  try {
+    const g = runHook({ toolCall: { name: 'grep_search', args: { SearchPath: dir, Query: 'K' } }, cwd: dir, workspacePaths: [dir] }, 'antigravity')
+    assert.equal(g.json?.decision, 'deny')
+    const w = runHook({ toolCall: { name: 'run_workflow', args: { Script: 'import os\nprint(list(os.walk(".")))' } }, cwd: dir, workspacePaths: [dir] }, 'antigravity')
+    assert.equal(w.json?.decision, 'deny')
+    const ok = runHook({ toolCall: { name: 'grep_search', args: { SearchPath: join(dir, 'src'), Query: 'K' } }, cwd: dir, workspacePaths: [dir] }, 'antigravity')
+    assert.equal(ok.stdout, '')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

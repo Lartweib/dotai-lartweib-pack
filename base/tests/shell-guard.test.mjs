@@ -207,3 +207,85 @@ test('a broken payload never blocks', () => {
   assert.equal(r.status, 0)
   assert.equal(r.stdout, '')
 })
+
+// A recursive content search returns the matching lines of every file under its scope, so a
+// scope that holds a denied file is a read of it (agy 1.5.12 ran `rg -uu "X" .`, trial 2026-11-19).
+function tree() {
+  const dir = mkdtempSync(join(tmpdir(), 'shell search '))
+  mkdirSync(join(dir, 'sub'))
+  mkdirSync(join(dir, 'src'))
+  mkdirSync(join(dir, 'certs'))
+  writeFileSync(join(dir, 'sub', '.env'), 'K=1\n')
+  writeFileSync(join(dir, 'certs', 'server.pem'), 'x\n')
+  writeFileSync(join(dir, 'src', 'app.ts'), 'export {}\n')
+  writeFileSync(join(dir, 'src', '.env.example'), 'K=\n')
+  return dir
+}
+
+test('a recursive content search over a scope holding a denied file is denied', () => {
+  const dir = tree()
+  try {
+    const v = cmd => decide(cmd, { harness: 'antigravity', cwd: dir, root: dir, home: HOME, denyPatterns: DENY })?.decision ?? null
+    for (const cmd of [
+      'rg -uu --line-number "K" .',
+      'rg --hidden K',
+      'rg -. K sub',
+      'rg K',
+      'rg K certs',
+      'rg -e K --hidden -- .',
+      'grep -rn K .',
+      'grep -R K',
+      'grep --recursive K sub',
+      'grep -r --include="*.env" K src',
+      'findstr /s /n K *.*',
+      'Get-ChildItem -Recurse | Select-String K',
+      'gci -r -File | Get-Content',
+      'Get-ChildItem -Path sub -Recurse -Force | Select-String -Pattern K',
+      'find . -type f -exec cat {} +',
+      'bash -c "grep -r K ."',
+    ]) {
+      assert.equal(v(cmd), 'deny', cmd)
+    }
+    const r = decide('rg -uu K .', { harness: 'antigravity', cwd: dir, root: dir, home: HOME, denyPatterns: DENY })
+    assert.match(r.reason, /sub[\\/]\.env/)
+    assert.match(r.reason, /narrower|glob|include/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a content search that leaves the denied files out passes', () => {
+  const dir = tree()
+  try {
+    const v = cmd => decide(cmd, { harness: 'antigravity', cwd: dir, root: dir, home: HOME, denyPatterns: DENY })?.decision ?? null
+    for (const cmd of [
+      'rg K src',
+      'rg --hidden K src',
+      'rg -uu -g "*.ts" K .',
+      'rg -g "!*.pem" K',
+      'grep -rn K src',
+      'grep -r --include=*.ts K .',
+      'grep K src/app.ts',
+      'findstr /s K *.ts',
+      'Get-ChildItem -Recurse -Filter *.ts | Select-String K',
+      'Get-ChildItem -Recurse',
+      'find . -name "*.ts" -exec cat {} +',
+      'git grep K',
+    ]) {
+      assert.equal(v(cmd), null, cmd)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a reader given a wildcard that expands to a denied file is denied', () => {
+  const dir = tree()
+  try {
+    const v = cmd => decide(cmd, { harness: 'antigravity', cwd: dir, root: dir, home: HOME, denyPatterns: DENY })?.decision ?? null
+    for (const cmd of ['cat sub/*', 'Select-String -Path sub\\* -Pattern K', 'Get-Content sub/.e*', 'type certs\\*.*', 'head -n 5 */.env']) assert.equal(v(cmd), 'deny', cmd)
+    for (const cmd of ['cat src/*', 'Select-String -Path *.md -Pattern K', 'Get-Content src/*.ts', 'cat *']) assert.equal(v(cmd), null, cmd)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
