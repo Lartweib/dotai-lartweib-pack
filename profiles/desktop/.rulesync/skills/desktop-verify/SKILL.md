@@ -17,7 +17,7 @@ Unit tests do not prove the app starts. After a change to the main process, the 
 
 ## E2E with Playwright
 
-- Pin `@playwright/test` to an exact version in `package.json` (no `^`). Playwright 1.58 fails to launch Electron 30 and later (issue microsoft/playwright#39008); use a version whose launch smoke test passes against the project's Electron. TODO(trial): find that version for the current Electron and record it in the project's `AGENTS.md`.
+- Pin `@playwright/test` to an exact version in `package.json` (no `^`). Playwright 1.58 fails to launch Electron 30 and later (issue microsoft/playwright#39008); use a version whose launch smoke test passes against the project's Electron (1.65.1 passes with Electron 45.3.4, checked 2026-11-19) and record it in the project's `AGENTS.md`.
 - Launch with `_electron.launch({ args: ['.'] })`, then `app.firstWindow()`. Use locators, not screenshots, to find elements.
 - Visual regression: `expect(window).toHaveScreenshot()`, with snapshots per platform.
 - Terse reporter (`--reporter=line`); read failures only.

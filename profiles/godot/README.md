@@ -56,7 +56,7 @@ Godot MCP (2 calls), `godot-claude-skills` (needs the editor), codegraph (no GDS
 ## TODO(trial)
 
 - OpenCode on Windows: which shell runs `bash`. The guard decides from the environment (`MSYSTEM`, `SHELL`); without them it suggests `godot-run`, which works in every shell.
-- The Claude Code `PowerShell` tool firing `PreToolUse` hooks is community-confirmed, not documented; check it in a session.
+- The Claude Code `PowerShell` tool firing `PreToolUse` hooks is community-confirmed, not documented; check it in a session. Partial (2026-11-19): Claude Code 2.1.328 lists `PowerShell` next to `Bash` in its init tools (run with `CLAUDE_CODE_USE_POWERSHELL_TOOL=1`), and the shell guard denies a `PowerShell` payload for `Get-Content sub/.env`; the session itself did not run because the isolated configuration was not logged in.
 - Tune `reserveMb` once on the 32 GB machine with several headless suites running.
 
 ## Verified on agy (trial 2026-11-19, agy 1.5.3, Windows)

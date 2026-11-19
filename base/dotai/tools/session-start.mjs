@@ -2,8 +2,10 @@
 // dotai-profiles skill (dotai 0045, pack 0047), so this hook never mentions profiles.
 //   1. Memory (0041, 0042): the author's preferences from Engram, through its CLI, read-only and
 //      capped at about 300 tokens. Also after a compaction, which drops them from the context;
-//      not on resume, which keeps them. Pinned items are not injected yet: the pinned CLI
-//      (v1.20.0) has no command that lists them (TODO(trial)).
+//      not on resume, which keeps them. Pinned items are not injected: the pinned CLI
+//      (v1.20.0) has no command that lists them (checked 2026-11-19: `engram help` names no
+//      pin command and no pinned filter on `search` or `context`; pinning is MCP-only,
+//      mem_pin/mem_unpin). Revisit after an engram upgrade.
 //   2. Memory failures: the newest entry of <pack home>/hook-errors.log (a summary PreCompact
 //      could not save, or a preference search that failed here) becomes one line, then the log
 //      is cleared (hook-lib takeHookError). A missing engram is not recorded here: it only means

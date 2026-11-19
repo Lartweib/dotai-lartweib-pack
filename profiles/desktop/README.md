@@ -26,7 +26,12 @@ Tauri MCP, Windows-MCP, `rust-analyzer-lsp`, Playwright MCP, Steam deploy.
 
 ## TODO(trial)
 
-- The Playwright version whose Electron launch passes against the app's Electron; record it in the project.
-- `desktop-shot.mjs` against the real Electron app (the tests use a fake Electron).
+- Record the passing Playwright version in the real project's `AGENTS.md` and run `desktop-shot.mjs` against that app (the trial below used a quick-start app).
 - A signed release with Certum SimplySign (local build), then `signtool verify /pa` on the installer; SignPath only if Certum's cost or the public name matter.
 - The project has no `AGENTS.md` yet: its commands go there, not in this profile.
+
+## Verified (trial 2026-11-19, Windows, Node 22)
+
+- Playwright 1.65.1 (`@playwright/test`, latest) launches Electron 45.3.4 (latest): `_electron.launch({ args: ['.'] })` on the minimal quick-start app returned the window title in 0.7 s and closed cleanly. No older Playwright was needed.
+- `desktop-shot.mjs --main . --out shots` against that app printed `{"ok":true,"title":"Quick Start","errors":["console: boom-check"],"path":"...\shots\window.png"}`: the real window was captured and a `console.error` from the page's inline script was reported.
+- npm did not run Electron's `postinstall` in that install, so `node_modules/electron/dist` was missing until `node node_modules/electron/install.js` ran (with `ELECTRON_CACHE` set, it stays out of the home folder).

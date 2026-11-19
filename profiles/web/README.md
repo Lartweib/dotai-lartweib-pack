@@ -63,8 +63,11 @@ The hooks run `node ${DOTAI_PROJECT_TOOLS}/<tool>.mjs` with the path bare, so a 
 
 ## TODO(trial)
 
-- Next 16 bundled docs: confirm the path inside `node_modules/next` that the rule relies on (measurement 11 confirmed the docs ship in the package, 3.14 MB in Next 16.3.4, not the exact path).
 - Cost of `astro check` per turn on the main web project (expected 10–30 s); raise `web.checkTimeoutSec` (up to 160 s) if it times out.
+
+## Verified (trial 2026-11-19, Next 16.4.6)
+
+- The bundled docs live in `node_modules/next/dist/docs/` (`index.md`, `01-app`, `02-pages`, `03-architecture`, `04-community`): 475 files, 4.3 MB, none over the read guard's 64 KB, so one page reads whole. The rule now names that path.
 
 ## Verified on agy (trial 2026-11-19, agy 1.5.3, Windows)
 
