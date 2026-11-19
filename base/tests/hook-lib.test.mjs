@@ -13,6 +13,7 @@ import {
   findConfig,
   formatPreToolUse,
   formatSessionStart,
+  isObject,
   numberSettings,
   parsePayload,
   projectRootOf,
@@ -280,6 +281,21 @@ test('profile hooks follow the agy quoting rule and state the per-harness block 
     }
     const perHarness = ['claudecode', 'opencode', 'antigravity-cli'].some(h => hooks[h])
     if (perHarness) assert.match(text, /per-harness block replaces the shared hooks of the same event/, p)
+  }
+})
+
+test('every profile hooks file has the top-level hooks record rulesync 41 requires', () => {
+  // rulesync 41 refuses a hooks file without it ("expected record" at ["hooks"]), which fails
+  // the whole apply of that profile (trial 2026-11-19, tooling).
+  for (const p of readdirSync(PROFILES)) {
+    let text
+    try {
+      text = readFileSync(join(PROFILES, p, '.rulesync', 'hooks.jsonc'), 'utf8')
+    } catch {
+      continue
+    }
+    const hooks = JSON.parse(text.replace(/^\s*\/\/.*$/gm, ''))
+    assert.ok(isObject(hooks.hooks), `${p}: .rulesync/hooks.jsonc needs "hooks": {}`)
   }
 })
 

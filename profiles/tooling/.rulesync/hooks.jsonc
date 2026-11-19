@@ -8,7 +8,8 @@
   // agy commands carry no quotes (agy runs hooks through cmd /c; see the godot profile).
   //   Claude Code: Edit, Write, MultiEdit
   //   agy: the names `agy plugin validate` (1.4.12) suggests for Claude's Edit and Write,
-  //        plus multi_replace_file_content (TODO(trial): agy edit names and its TargetFile field)
+  //        plus multi_replace_file_content. agy 1.5.3 sent `edit_file` with args.Path (trial
+  //        2026-11-19), but its PostToolUse drops the {decision} output: see the README TODO(trial).
   // No OpenCode hook: rulesync 41.0.0 renders a project postToolUse in the OpenCode plugin as a bare
   // `node` call with no stdin payload, no .nothrow().quiet(), no timeout and unquoted paths; it hangs
   // OpenCode's write tool (trial 2026-11-04), and with no payload it could not check anything. The
@@ -17,6 +18,8 @@
   // rulesync pipes the payload to these hooks; an upstream report is pending.
   // TODO(engine): bare `node <path>` command; see the godot profile's hooks.jsonc.
   "version": 1,
+  // Empty but required: rulesync 41 refuses a hooks file without a top-level "hooks" record.
+  "hooks": {},
   "claudecode": {
     "hooks": {
       "postToolUse": [

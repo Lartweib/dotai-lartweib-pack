@@ -145,8 +145,9 @@ async function main() {
     r = null
   }
   // Claude Code reads {decision: "block", reason} on PostToolUse as feedback to the agent.
-  // TODO(trial): agy PostToolUse output format (its docs say it expects {}); OpenCode runs
-  // postToolUse without a payload.
+  // agy 1.5.3 rejects this on PostToolUse ("unknown field decision"; its result proto has only
+  // overwriteResult, which did not reach the model either), so agy gets no feedback here
+  // (TODO(trial): pick agy's path, README). OpenCode runs postToolUse without a payload.
   if (r) process.stdout.write(JSON.stringify({ decision: 'block', reason: `tooling check:\n${r}` }))
 }
 

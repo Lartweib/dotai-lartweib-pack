@@ -52,4 +52,4 @@ agy 1.4.12 (trial 2026-11-04): it never sets the tab title, and its banner print
 
 - How the line behaves in Orca's login shell on macOS and Linux (the tab title, `exit`).
 - `confirm` against `worker-read` output itself: the banner text above was captured from agy's own terminal, not through Orca.
-- The standalone TODO(trial) items apply too (quota error sample, paid-credit fallback, `--mode` under `-p`).
+- The standalone TODO(trial) items apply too (quota error sample, paid-credit fallback, `accept-edits` refusing shell commands under `-p`).

@@ -55,10 +55,15 @@ Godot MCP (2 calls), `godot-claude-skills` (needs the editor), codegraph (no GDS
 
 ## TODO(trial)
 
-- agy at runtime: the payload shape (`toolCall.args.CommandLine`), the `run_command` matcher and the `{decision}` output match agy 1.4.12's own hooks docs, but a session has not run the guard yet. The state goes out as `injectSteps` JSON, the shape that reached the model in the engine's check.
-- agy and OpenCode on Windows: which shell runs `run_command` and `bash`. The guard decides from the environment (`MSYSTEM`, `SHELL`); without them it suggests `godot-run`, which works in every shell.
+- OpenCode on Windows: which shell runs `bash`. The guard decides from the environment (`MSYSTEM`, `SHELL`); without them it suggests `godot-run`, which works in every shell.
 - The Claude Code `PowerShell` tool firing `PreToolUse` hooks is community-confirmed, not documented; check it in a session.
 - Tune `reserveMb` once on the 32 GB machine with several headless suites running.
+
+## Verified on agy (trial 2026-11-19, agy 1.5.3, Windows)
+
+- The guard runs on agy: the `run_command` matcher fires, the payload is `toolCall.name: "run_command"` with `toolCall.args.CommandLine` (plus `WaitMsBeforeAsync`, `toolSummary`; no `Cwd` unless the model sets one), and the top-level `cwd` is the project root. `{"decision":"deny","reason":...}` is honored, even with `--dangerously-skip-permissions`: the model got "tool call denied by pre-tool hook: godot guard: ...".
+- agy starts hook commands with the working directory `<project>/.agents`, so hooks must take the project from the payload's `cwd`, never from `process.cwd()`.
+- `run_command` runs in Windows PowerShell 5.1 even when agy starts from Git Bash; `MSYSTEM` is inherited (`MINGW64`) but means nothing there, which is why `shellKind` returns `powershell` for agy unconditionally.
 
 ## Measured (measurements 6 and 10, 2026-11-02)
 

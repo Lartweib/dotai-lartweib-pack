@@ -224,7 +224,8 @@ async function main() {
   }
   if (!r) return
   // Claude Code (and OpenCode via rulesync) read {decision: "block"} on Stop.
-  // TODO(trial): agy's Stop payload and decision format; for now it gets the same JSON.
+  // agy 1.5.3 honors the same JSON on Stop (trial 2026-11-19); its payload has no
+  // stop_hook_active, so there the stamp alone ends the loop.
   process.stdout.write(JSON.stringify({ decision: 'block', reason: r.reason }))
 }
 

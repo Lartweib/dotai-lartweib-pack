@@ -52,5 +52,5 @@ SDD skills (0020), `judgment-day` and `jd-*`, the four `review-*` agents (the ba
 
 ## TODO(trial)
 
-- agy edit tool names and payload field (`TargetFile`) for the `PostToolUse` matcher. agy's docs say `PostToolUse` expects `{}` on stdout, so the `{decision: "block"}` feedback may not reach the agent there.
+- agy: lint feedback has no path to the model on `PostToolUse` (trial 2026-11-19, agy 1.5.3). The hook fires: the edit tool was `edit_file` with `toolCall.args.Path` (plus `Target`, `Replacement`; no `TargetFile`), so `filePathOf` finds the file and the check runs. But agy parses the output as its `PostToolHookResult` proto, whose only field is `overwriteResult`: `{decision: "block"}` is rejected ("unknown field \"decision\"" in agy's log) and dropped, and an `overwriteResult` was accepted but the model still saw the original tool result. agy's own docs say `PostToolUse` expects `{}`. Open: move the agy check to `Stop` (where `{decision: "block"}` is honored, see the web profile) or to `PostInvocation` (`injectSteps`), or drop the agy hook.
 - `go vet` time per edit on a large module; drop it to `Stop` if it is slow.

@@ -64,5 +64,10 @@ The hooks run `node ${DOTAI_PROJECT_TOOLS}/<tool>.mjs` with the path bare, so a 
 ## TODO(trial)
 
 - Next 16 bundled docs: confirm the path inside `node_modules/next` that the rule relies on (measurement 11 confirmed the docs ship in the package, 3.14 MB in Next 16.3.4, not the exact path).
-- agy `Stop`: the payload, and whether `{decision: "block"}` is honored.
 - Cost of `astro check` per turn on the main web project (expected 10–30 s); raise `web.checkTimeoutSec` (up to 160 s) if it times out.
+
+## Verified on agy (trial 2026-11-19, agy 1.5.3, Windows)
+
+- `Stop` fires with `{hookEventName: "Stop", executionNum, terminationReason: "NO_TOOL_CALL", fullyIdle, continuationActive, error, cwd, modelName, conversationId, workspacePaths, ...}`; the top-level `cwd` is the project root (the hook process starts in `<project>/.agents`).
+- `{decision: "block", reason}` is honored: agy re-entered the loop, the model fixed the type error, and the second `Stop` (`executionNum: 1`) passed. agy's own docs name only `"continue"` for this; `"block"` worked in 1.5.3.
+- There is no `stop_hook_active`, and `continuationActive` was `false` on the second `Stop` although its docs say it is `true` after a hook kept the agent going. The loop is bounded by the fingerprint stamp (a tree already checked is not checked again), not by the payload.

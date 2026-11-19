@@ -17,6 +17,7 @@ id_rsa*
 ~/.config/gcloud/
 ~/.wrangler/
 ~/.claude/.credentials.json
-# TODO(trial): agy keeps its login in the OS keyring (HARNESS-NOTES); confirm the name of any
-# OAuth token file under ~/.gemini/.
+# agy keeps its login in the OS keyring (HARNESS-NOTES): after logged-in agy 1.5.3 runs, neither
+# ~/.gemini/ nor the isolated gemini dir held an OAuth or token file (trial 2026-11-19). This
+# entry stays as a precaution (the Gemini CLI file name).
 ~/.gemini/oauth_creds.json

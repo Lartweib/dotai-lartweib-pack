@@ -528,8 +528,8 @@ const READ_ONLY = new Set(['research', 'audit'])
 // The prompt holds no quote, percent sign or line break, so it survives every shell. A code job
 // writes the long result to a file, which keeps accented characters (agy's -p output loses them,
 // 0022). Research and audit run read-only (agy plan mode, OpenCode without --auto), so the agent
-// cannot write result.md: its reply is the result, saved there by this tool (TODO(trial): whether
-// plan mode keeps the accents and lets agy read the job folder).
+// cannot write result.md: its reply is the result, saved there by this tool. agy 1.5.3 plan mode
+// read the job folder and kept the accents of its JSON reply (trial 2026-11-19).
 export function buildPrompt(jobDir, kind = 'research') {
   if (READ_ONLY.has(kind) || !KINDS.includes(kind)) {
     return `Read spec.md in the job folder and do the task it describes. This is a read-only run: edit no file and reply with the complete result, which is saved to result.md. job folder: ${jobDir}`

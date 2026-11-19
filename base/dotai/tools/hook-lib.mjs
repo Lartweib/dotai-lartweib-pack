@@ -60,8 +60,10 @@ export const isObject = v => v !== null && typeof v === 'object' && !Array.isArr
 //   (community-confirmed, not in the hooks reference yet).
 // OpenCode (rulesync plugin): same shape, tool name "bash" (2.0.30), or "shell", which the
 //   rulesync plugin also matches as "bash"
-// agy: { toolCall: { name: "run_command", args: { CommandLine, Cwd } }, ... } (agy 1.4.12 hooks
-//   docs; TODO(trial): confirm at runtime)
+// agy: { toolCall: { name: "run_command", args: { CommandLine, WaitMsBeforeAsync, toolSummary } },
+//   cwd, workspacePaths, ... }; args.Cwd only when the model sets one, so the top-level cwd (the
+//   project root) is the fallback. The hook process itself starts in <project>/.agents, so
+//   process.cwd() is never the project there (trial 2026-11-19, agy 1.5.3).
 export function parsePayload(raw) {
   let p = {}
   try {
@@ -107,6 +109,7 @@ export function shellKind(parsed, env = process.env, platform = process.platform
   if (parsed.harness === 'claudecode') return 'posix'
   // agy 1.4.12 runs run_command in PowerShell on Windows even when started from Git Bash
   // (MSYSTEM set): `echo $env:OS %OS%` printed Windows_NT and a literal %OS% (trial, 2026-11-03).
+  // Same on agy 1.5.3: Windows PowerShell 5.1, MSYSTEM=MINGW64 inherited (trial, 2026-11-19).
   if (parsed.harness === 'antigravity') return 'powershell'
   if (env.MSYSTEM || /(^|[\\/])(ba|z|da)?sh(\.exe)?$/i.test(env.SHELL ?? '')) return 'posix'
   return 'windows'

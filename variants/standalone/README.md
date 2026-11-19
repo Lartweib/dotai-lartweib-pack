@@ -68,9 +68,13 @@ A value that is not a positive number (or a known mode) keeps its default, with 
 ## TODO(trial)
 
 - Quota error text: no real sample yet (`RESOURCE_EXHAUSTED`, "out of quota until" from the binary). agy may fall back to paid AI credits after quota instead of failing (measurement 1); the account is assumed subscription-only (0022).
-- `--mode accept-edits` under `-p`: whether shell commands still prompt (and hang) in a headless run.
-- `--mode plan` under `-p` for research and audit: whether agy can still read the job folder, and whether its reply keeps accents (the reply is the result there).
+- `--mode accept-edits` under `-p` (trial 2026-11-19, agy 1.5.3): a shell command neither prompts nor hangs; it is refused at once ("permission check failed ... user denied permission to run command"), and agy ends the turn with an empty reply, so a code job that needs one command ends `FAIL no reply and no result.md` in about 8 s. With `agyMode: auto` the same job ran the command and ended `OK`. Open: whether code jobs default to `auto` (0019 decides how much a code job may approve).
 - OpenCode `run` without `--auto`: whether a permission that would ask is refused or hangs.
-- agy's JSON: whether it names the model actually used; the result line shows `actual-model=...!` only when it does and differs.
+- The delegated agy runs without `--gemini_dir`, so under an isolated install it uses the user's own agy configuration (`~/.gemini`), not the isolated one with the pack's deny rules and hooks.
+
+## Verified (trial 2026-11-19, agy 1.5.3)
+
+- `--mode plan` under `-p`: agy reads `spec.md` in the job folder and project files, and the reply keeps accents (`ó`, `é`, no U+FFFD) through `--output-format json` into result.md.
+- agy's JSON output (`conversation_id`, `status`, `response`, `duration_seconds`, `num_turns`, `usage`) does not name the model, so `actual-model=...!` never shows for agy. The model is in agy's transcript (`model` on each planner step) and in hook payloads (`modelName`).
 - OpenCode `run --format json --auto`: the event shape; success is the exit code, and tokens are not read.
 - Exhaustion could end at the pool's reset time, which the base statusline now writes (`*_resets`), instead of `exhaustedMinutes`.
