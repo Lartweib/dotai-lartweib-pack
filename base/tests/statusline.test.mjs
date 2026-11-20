@@ -168,15 +168,24 @@ test('without a harness argument the input shape decides; empty or broken input 
 test('the PowerShell wrapper passes stdin and arguments through', { skip: process.platform !== 'win32' }, () => {
   const h = home()
   try {
+    const env = { ...process.env, USERPROFILE: h, HOME: h, NO_COLOR: '1' }
+    // PowerShell's own startup varies by host (over 5 s cold on a CI runner, CI 2026-11-20): a
+    // bare launch first absorbs the cold start and gives the baseline the wrapper is held to.
+    const b0 = Date.now()
+    const bare = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', 'exit 0'], { env, timeout: 60000 })
+    assert.equal(bare.status, 0, String(bare.error ?? bare.stderr))
+    const baseline = Date.now() - b0
     const t0 = Date.now()
     const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(TOOLS, 'statusline.ps1'), 'claudecode'], {
       input: JSON.stringify(ccInput),
       encoding: 'utf8',
-      env: { ...process.env, USERPROFILE: h, HOME: h, NO_COLOR: '1' },
+      env,
+      timeout: 60000,
     })
-    assert.equal(r.status, 0, r.stderr)
+    const took = Date.now() - t0
+    assert.equal(r.status, 0, String(r.error ?? r.stderr))
     assert.match(r.stdout, /^CC\s+5h 41%/)
-    assert.ok(Date.now() - t0 < 5000, `took ${Date.now() - t0} ms`)
+    assert.ok(took < baseline + 3000, `took ${took} ms, a bare PowerShell launch ${baseline} ms`)
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
