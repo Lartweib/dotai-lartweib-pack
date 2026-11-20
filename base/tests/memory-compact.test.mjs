@@ -123,7 +123,7 @@ test('PreCompact saves one session summary through the CLI, typed and keyed by s
     const [cmd, title, content, ...flags] = calls[0]
     assert.equal(cmd, 'save')
     assert.match(title, /Session summary: my game/)
-    assert.match(content, /save/)
+    assert.match(content, /Fix the "save" bug at 100% load/, 'quotes and percent signs reach a .cmd engram exactly')
     assert.match(content, /inventory\.gd/)
     const flag = name => flags[flags.indexOf(name) + 1]
     assert.equal(flag('--type'), 'session_summary')
@@ -158,13 +158,14 @@ test('nothing is saved without a transcript or prompts, and a failing CLI never 
   }
 })
 
+// Fake tokens, split so secret scanners (GitHub push protection) do not flag this file.
 const SECRETS = [
-  'sk-ant-api03-AbCdEfGhIjKlMnOpQrStUvWx',
-  'ghp_0123456789abcdefghijABCDEFGHIJ',
-  'gho_0123456789abcdefghijABCDEFGHIJ',
-  'github_pat_11ABCDEFG0123456789_abcdefghijklmnop',
-  'AKIAIOSFODNN7EXAMPLE',
-  'xoxb-1234567890-abcdefghij',
+  'sk-' + 'ant-api03-AbCdEfGhIjKlMnOpQrStUvWx',
+  'gh' + 'p_0123456789abcdefghijABCDEFGHIJ',
+  'gh' + 'o_0123456789abcdefghijABCDEFGHIJ',
+  'github' + '_pat_11ABCDEFG0123456789_abcdefghijklmnop',
+  'AKIA' + 'IOSFODNN7EXAMPLE',
+  'xo' + 'xb-1234567890-abcdefghij',
   'q8Zr3kLm9Xv2Tn7Bw4Yc1Hd6Gf0Js5Ka',
 ]
 
@@ -244,18 +245,5 @@ test('a summary that could not be saved is recorded for the next session start',
   } finally {
     rmSync(s.base, { recursive: true, force: true })
     rmSync(failing.dir, { recursive: true, force: true })
-  }
-})
-
-test('quotes and percent signs reach a .cmd engram exactly', () => {
-  const s = setup()
-  const fake = fakeEngram()
-  try {
-    runHook({ session_id: 'q', transcript_path: s.t, cwd: s.root }, 'claudecode', fake.env)
-    const [, , content] = fake.calls()[0]
-    assert.match(content, /Fix the "save" bug at 100% load/)
-  } finally {
-    rmSync(s.base, { recursive: true, force: true })
-    rmSync(fake.dir, { recursive: true, force: true })
   }
 })

@@ -35,7 +35,7 @@ The engine can declare external skills, plugins and agents only after engine v1 
 
 | Item | Source | License | Status |
 |---|---|---|---|
-| `go-testing` skill | Gentleman Programming | Apache-2.0 | Keep (2 uses); installable by name, so not vendored |
+| `go-testing` skill | Gentleman Programming | Apache-2.0 | Keep (in use); installable by name, so not vendored |
 | gopls MCP | `gopls mcp` (Go team) | BSD-3 | Not loaded by default: its instructions (`gopls mcp -instructions`) cost ~1.2k tokens and its tool schemas ~1.1k, and the instructions make the agent run `go_workspace` and `go_vulncheck` every session (measurement 11, gopls v0.24). On demand, per project, for a large Go module |
 | `gopls-lsp`, `rust-analyzer-lsp`, `typescript-lsp` | claude-plugins-official | not stated | TODO(trial): Windows bug report ("No LSP server available"); check that diagnostics appear in Git Bash, and measure with `claude plugin details` |
 | cargo-nextest, clippy JSON, cargo-deny | Rust tooling | MIT / Apache-2.0 | Adopt when a Rust project appears; clippy on `Stop` is TODO(trial) |
@@ -48,7 +48,7 @@ The hooks run `node ${DOTAI_PROJECT_TOOLS}/<tool>.mjs` with the path bare, so a 
 
 ## Dropped
 
-SDD skills (0020), `judgment-day` and `jd-*`, the four `review-*` agents (the base `reviewer` takes the focus as a parameter), GitHub MCP (`gh` instead), RTK (0 uses).
+SDD skills (0020), `judgment-day` and `jd-*`, the four `review-*` agents (the base `reviewer` takes the focus as a parameter), GitHub MCP (`gh` instead), RTK (unused).
 
 ## agy runs the check on Stop
 

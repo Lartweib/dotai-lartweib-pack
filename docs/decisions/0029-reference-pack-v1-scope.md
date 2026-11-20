@@ -9,11 +9,11 @@ origin: dotai 0041 (pack half)
 
 # 0029 · v1 scope of the reference pack
 
-The engine half (engine v1) is [dotai 0020](../../../dotai/docs/decisions/0020-v1-scope-engine-and-pack.md).
+The engine half (engine v1) is [dotai 0020](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0020-v1-scope-engine-and-pack.md).
 
 ## Context
 
-[0007](0007-five-layers-and-profiles.md) defined five product layers (global base, `delegate`, global panel, onboarding with profiles, agy-hub parity) and built them in that order. Since then the engine and the packs were separated ([dotai 0010](../../../dotai/docs/decisions/0010-engine-and-pack-separated.md)), review left the base ([0027](0027-review-rounds-preset-in-the-tracker.md)), and variants ([0028](0028-standalone-and-orca-variants.md)) and install modes ([dotai 0018](../../../dotai/docs/decisions/0018-install-modes-and-mandatory-backup.md)) appeared. Most of the five layers are pack content, not engine features.
+[0007](0007-five-layers-and-profiles.md) defined five product layers (global base, `delegate`, global panel, onboarding with profiles, agy-hub parity) and built them in that order. Since then the engine and the packs were separated ([dotai 0010](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0010-engine-and-pack-separated.md)), review left the base ([0027](0027-review-rounds-preset-in-the-tracker.md)), and variants ([0028](0028-standalone-and-orca-variants.md)) and install modes ([dotai 0018](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0018-install-modes-and-mandatory-backup.md)) appeared. Most of the five layers are pack content, not engine features.
 
 ## Decision
 
@@ -28,7 +28,7 @@ The profile list from 0007 (`godot` with the `obra` sub-profile, `web`, `desktop
 
 ## Considered options
 
-- **A (chosen):** v1 split into engine and pack, trialed first through the engine's isolated install mode ([dotai 0018](../../../dotai/docs/decisions/0018-install-modes-and-mandatory-backup.md)).
+- **A (chosen):** v1 split into engine and pack, trialed first through the engine's isolated install mode ([dotai 0018](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0018-install-modes-and-mandatory-backup.md)).
 - **B:** keep the five-layer order of 0007. Rejected: it mixes engine and pack, and it predates variants and install modes.
 
 ## Consequences
@@ -39,7 +39,7 @@ The profile list from 0007 (`godot` with the `obra` sub-profile, `web`, `desktop
 
 ## Update (2026-10-25)
 
-Sub-profiles were replaced by flat, combinable profiles in [dotai 0023](../../../dotai/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md); `obra` becomes an ordinary profile.
+Sub-profiles were replaced by flat, combinable profiles in [dotai 0023](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md); `obra` becomes an ordinary profile.
 
 ## Update (2026-10-26)
 

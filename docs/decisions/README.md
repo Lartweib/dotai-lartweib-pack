@@ -6,7 +6,7 @@ One file per decision (format based on MADR 4.0.0, see [template.md](template.md
 
 These records moved from the dotai engine repository on 2026-10-26 and were renumbered from 0001 in their original order. Each record's `origin` field keeps its former dotai number. Records split from a mixed dotai record hold only the pack half; the engine half stays in dotai.
 
-Links to engine records use the sibling path `../../../dotai/docs/decisions/<file>`, so both repositories must be checked out side by side. They become URLs when the repositories are published.
+Links to engine records use their GitHub URL, `https://github.com/Lartweib/dotai/blob/main/docs/decisions/<file>`.
 
 ## In force
 
@@ -73,4 +73,4 @@ Links to engine records use the sibling path `../../../dotai/docs/decisions/<fil
 - [OPEN-QUESTIONS.md](../OPEN-QUESTIONS.md): open questions that are not decisions yet.
 - [DESIGN.md](../DESIGN.md): consolidated design.
 - [RUNTIME.md](../RUNTIME.md): the pack's runtime architecture.
-- [Engine decision log](../../../dotai/docs/decisions/README.md).
+- [Engine decision log](https://github.com/Lartweib/dotai/blob/main/docs/decisions/README.md).

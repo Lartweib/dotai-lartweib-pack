@@ -1,10 +1,10 @@
-// vframes started as the author's existing tool; these tests cover its entry point and
+// vframes started as the maintainer's existing tool; these tests cover its entry point and
 // wrappers (usage error, no download), the pure helpers behind subtitle anchors,
 // sliding-window dedup and Whisper detection, and a real ffmpeg clip when installed.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,13 +15,46 @@ const TOOLS = join(dirname(fileURLToPath(import.meta.url)), '..', 'dotai', 'tool
 const VFRAMES = join(TOOLS, 'vframes.mjs')
 const hasFfmpeg = !spawnSync('ffmpeg', ['-version']).error
 
-const vframes = (args, opts = {}) => spawnSync(process.execPath, [VFRAMES, ...args], { encoding: 'utf8', timeout: 120000, ...opts })
+// Every test that starts a process is bounded twice: the spawn and the test itself.
+const RUN_MS = 60000
+const TEST = { timeout: 90000 }
+const vframes = (args, opts = {}) => spawnSync(process.execPath, [VFRAMES, ...args], { encoding: 'utf8', timeout: RUN_MS, killSignal: 'SIGKILL', ...opts })
+
+// Fake Whisper scripts append their pid here; teardown kills whatever is still alive,
+// so a failed or timed-out test leaves no process behind.
+const PIDS = 'pids.txt'
+const recordedPids = (dir) => {
+  try {
+    return readFileSync(join(dir, PIDS), 'utf8').split(/\s+/).filter(Boolean).map(Number)
+  } catch {
+    return []
+  }
+}
+function killRecorded(dir) {
+  for (const pid of recordedPids(dir)) {
+    try {
+      process.kill(pid, 'SIGKILL')
+    } catch {}
+  }
+}
 
 // A temp dir with a space in it: Windows paths with spaces are the common case.
 function scratch(t) {
   const dir = mkdtempSync(join(tmpdir(), 'vframes test '))
-  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  t.after(() => {
+    killRecorded(dir)
+    rmSync(dir, { recursive: true, force: true })
+  })
   return dir
+}
+
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    return e.code === 'EPERM'
+  }
 }
 
 // PATH limited to one directory, whatever case the platform spells it in.
@@ -33,11 +66,11 @@ function envWithPath(dir) {
 
 const manifest = (dir) => readFileSync(join(dir, 'manifest.tsv'), 'utf8').trim().split('\n').slice(1).map((l) => l.split('\t'))
 
-test('vframes and its wrappers print usage for a missing argument', () => {
+test('vframes and its wrappers print usage for a missing argument', TEST, () => {
   const runs = [['node', VFRAMES], ['sh', join(TOOLS, 'vframes.sh')]]
   if (process.platform === 'win32') runs.push(['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(TOOLS, 'vframes.ps1')])
   for (const argv of runs) {
-    const r = spawnSync(argv[0], [...argv.slice(1), 'fetch'], { encoding: 'utf8', timeout: 30000 })
+    const r = spawnSync(argv[0], [...argv.slice(1), 'fetch'], { encoding: 'utf8', timeout: 30000, killSignal: 'SIGKILL' })
     assert.equal(r.status, 1, argv[0])
     assert.match(r.stderr, /usage: vframes fetch/, argv[0])
   }
@@ -119,30 +152,45 @@ test('transcribe without a Whisper CLI prints one line with install hints and fa
   assert.ok(!existsSync(join(dir, 'my clip.vtt')))
 })
 
-// The fake Whisper is node itself under a Whisper name, and the "video" is a script
+test('findWhisper takes WHISPER_BIN first, with its kind from WHISPER_KIND or the file name', (t) => {
+  const dir = scratch(t)
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  writeFileSync(join(dir, `whisper${ext}`), '')
+  const bin = join(dir, `faster-whisper-xxl${ext}`)
+  const env = { ...envWithPath(dir), WHISPER_BIN: bin }
+  assert.deepEqual(findWhisper(env), { name: 'faster-whisper-xxl', path: bin })
+  assert.deepEqual(findWhisper({ ...env, WHISPER_KIND: 'whisper-ctranslate2' }), { name: 'whisper-ctranslate2', path: bin })
+  assert.deepEqual(findWhisper({ ...env, WHISPER_BIN: join(dir, 'my-asr') }), { name: 'whisper', path: join(dir, 'my-asr') })
+})
+
+// The fake Whisper is the running node binary, named through WHISPER_BIN and WHISPER_KIND
+// (a copy of node.exe can stall at process start on Windows), and the "video" is a script
 // that writes the .vtt where a real Whisper CLI would: <output_dir>/<stem>.vtt.
-function fakeWhisper(dir, name = 'whisper') {
+// PATH holds only bin/, where a test may drop an nvidia-smi marker.
+function fakeWhisper(dir, kind = 'whisper') {
   const bin = join(dir, 'bin')
   mkdirSync(bin)
-  if (process.platform === 'win32') {
-    const fake = join(bin, `${name}.exe`)
-    try { linkSync(process.execPath, fake) } catch { copyFileSync(process.execPath, fake) }
-  } else {
-    symlinkSync(process.execPath, join(bin, name))
-  }
-  return bin
+  return { ...envWithPath(bin), WHISPER_BIN: process.execPath, WHISPER_KIND: kind }
 }
 
-test('transcribe runs the Whisper CLI it finds and writes a .vtt next to the video', (t) => {
-  const dir = scratch(t)
-  const bin = fakeWhisper(dir)
+// The fake "video": records its pid for teardown, then runs the given lines.
+function fakeVideo(dir, lines) {
   const video = join(dir, 'my clip.mp4')
   writeFileSync(video, [
+    `require('fs').appendFileSync(${JSON.stringify(join(dir, PIDS))}, process.pid + '\\n')`,
+    ...lines,
+  ].join('\n'))
+  return video
+}
+
+test('transcribe runs the Whisper CLI it finds and writes a .vtt next to the video', TEST, (t) => {
+  const dir = scratch(t)
+  const env = fakeWhisper(dir)
+  const video = fakeVideo(dir, [
     "const a = process.argv, at = (k) => a[a.indexOf(k) + 1]",
     "if (at('--output_format') !== 'vtt') process.exit(3)",
     "require('fs').writeFileSync(require('path').join(at('--output_dir'), 'my clip.vtt'), 'WEBVTT\\n\\n00:00.500 --> 00:01.000\\nhi\\n\\n00:03.000 --> 00:04.000\\nthere\\n')",
-  ].join('\n'))
-  const env = envWithPath(bin)
+  ])
   const r = vframes(['transcribe', video], { env })
   assert.equal(r.status, 0, r.stderr)
   assert.ok(existsSync(join(dir, 'my clip.vtt')))
@@ -159,16 +207,14 @@ test('transcribe runs the Whisper CLI it finds and writes a .vtt next to the vid
 // whisper-ctranslate2 0.5.8 on an unsupported GPU (RTX 50xx with ctranslate2 4.x) logs
 // a cuBLAS traceback, writes nothing and still exits 0. The cause must reach the
 // agent, and --device must be passed through so it can retry on the CPU.
-test('transcribe surfaces a silent Whisper failure and passes --device through', (t) => {
+test('transcribe surfaces a silent Whisper failure and passes --device through', TEST, (t) => {
   const dir = scratch(t)
-  const bin = fakeWhisper(dir)
-  const video = join(dir, 'my clip.mp4')
-  writeFileSync(video, [
+  const env = fakeWhisper(dir)
+  const video = fakeVideo(dir, [
     "const a = process.argv, at = (k) => a[a.indexOf(k) + 1]",
     "if (at('--device') !== 'cpu') { console.error('RuntimeError: cuBLAS failed with status CUBLAS_STATUS_NOT_SUPPORTED'); process.exit(0) }",
     "require('fs').writeFileSync(require('path').join(at('--output_dir'), 'my clip.vtt'), 'WEBVTT\\n\\n00:00.500 --> 00:01.000\\nhi\\n')",
-  ].join('\n'))
-  const env = envWithPath(bin)
+  ])
   const r = vframes(['transcribe', video], { env })
   assert.equal(r.status, 1)
   assert.match(r.stderr, /CUBLAS_STATUS_NOT_SUPPORTED/)
@@ -203,19 +249,17 @@ test('whisperArgs defaults to large-v3-turbo and float16 on an NVIDIA GPU for ct
   assert.equal(at(openai, '--model'), 'large-v3-turbo')
 })
 
-test('transcribe passes float16 when nvidia-smi is on PATH and hints float32 then cpu on a CUDA error', (t) => {
+test('transcribe passes float16 when nvidia-smi is on PATH and hints float32 then cpu on a CUDA error', TEST, (t) => {
   const dir = scratch(t)
-  const bin = fakeWhisper(dir, 'whisper-ctranslate2')
-  writeFileSync(join(bin, process.platform === 'win32' ? 'nvidia-smi.exe' : 'nvidia-smi'), '')
-  const video = join(dir, 'my clip.mp4')
+  const env = fakeWhisper(dir, 'whisper-ctranslate2')
+  writeFileSync(join(dir, 'bin', process.platform === 'win32' ? 'nvidia-smi.exe' : 'nvidia-smi'), '')
   const argsLog = join(dir, 'args.json')
-  writeFileSync(video, [
+  const video = fakeVideo(dir, [
     "const a = process.argv, at = (k) => a[a.indexOf(k) + 1]",
     `require('fs').writeFileSync(${JSON.stringify(argsLog)}, JSON.stringify(a.slice(2)))`,
     "if (at('--compute_type') !== 'float32') { console.error('RuntimeError: cuBLAS failed with status CUBLAS_STATUS_NOT_SUPPORTED'); process.exit(0) }",
     "require('fs').writeFileSync(require('path').join(at('--output_dir'), 'my clip.vtt'), 'WEBVTT\\n\\n00:00.500 --> 00:01.000\\nhi\\n')",
-  ].join('\n'))
-  const env = envWithPath(bin)
+  ])
   const r = vframes(['transcribe', video], { env })
   assert.equal(r.status, 1)
   const sent = JSON.parse(readFileSync(argsLog, 'utf8'))
@@ -225,6 +269,39 @@ test('transcribe passes float16 when nvidia-smi is on PATH and hints float32 the
   const f32 = vframes(['transcribe', video, '--compute-type', 'float32'], { env })
   assert.equal(f32.status, 0, f32.stderr)
   assert.match(f32.stdout, /cues\s+1/)
+})
+
+// A Whisper that never exits must not hang vframes: --timeout kills its whole process
+// tree (here the fake and a child it started) and fails with a clear message.
+test('transcribe kills a hung Whisper and its children after --timeout and fails clearly', TEST, async (t) => {
+  const dir = scratch(t)
+  const env = fakeWhisper(dir)
+  const video = fakeVideo(dir, [
+    "const { spawn } = require('child_process'), fs = require('fs')",
+    "const kid = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })",
+    `fs.appendFileSync(${JSON.stringify(join(dir, PIDS))}, kid.pid + '\\n')`,
+    'setInterval(() => {}, 1000)',
+  ])
+  const started = Date.now()
+  const r = vframes(['transcribe', video, '--timeout', '2'], { env })
+  assert.equal(r.status, 1, r.stderr)
+  assert.match(r.stderr, /whisper timed out after 2 s/)
+  assert.match(r.stderr, /--timeout/)
+  assert.ok(Date.now() - started < 30000, 'vframes returned long after its timeout')
+  assert.ok(!existsSync(join(dir, 'my clip.vtt')))
+  const pids = recordedPids(dir)
+  assert.equal(pids.length, 2, 'the fake and its child both started')
+  for (let i = 0; i < 50 && pids.some(alive); i++) await new Promise((res) => setTimeout(res, 100))
+  assert.deepEqual(pids.filter(alive), [], 'no Whisper process is left behind')
+})
+
+test('transcribe rejects a --timeout that is not a positive number', (t) => {
+  const dir = scratch(t)
+  const video = join(dir, 'my clip.mp4')
+  writeFileSync(video, '')
+  const r = vframes(['transcribe', video, '--timeout', 'soon'], { env: fakeWhisper(dir) })
+  assert.equal(r.status, 1)
+  assert.match(r.stderr, /--timeout must be a positive number of seconds/)
 })
 
 // ---------------------------------------------------------------- real clip
@@ -243,7 +320,7 @@ function abaClip(dir) {
   return clip
 }
 
-test('frames: sliding-window dedup drops the returning shot (skipped without ffmpeg)', (t) => {
+test('frames: sliding-window dedup drops the returning shot (skipped without ffmpeg)', TEST, (t) => {
   if (!hasFfmpeg) return t.skip('ffmpeg not installed')
   const dir = scratch(t)
   const clip = abaClip(dir)
@@ -260,7 +337,7 @@ test('frames: sliding-window dedup drops the returning shot (skipped without ffm
   assert.equal(JSON.parse(readFileSync(join(out, 'meta.json'), 'utf8')).deduped, 1)
 })
 
-test('frames: subtitle anchors add frames at cue starts, gap-filtered and capped (skipped without ffmpeg)', (t) => {
+test('frames: subtitle anchors add frames at cue starts, gap-filtered and capped (skipped without ffmpeg)', TEST, (t) => {
   if (!hasFfmpeg) return t.skip('ffmpeg not installed')
   const dir = scratch(t)
   const clip = abaClip(dir)

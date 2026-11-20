@@ -7,7 +7,7 @@ origin: dotai 0014 (pack half)
 
 # 0010 · Onboarding in the reference pack: classification and analyzer
 
-> **Partially superseded by [dotai 0023](../../../dotai/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md): sub-profiles.** The engine half (detection by content, approval before applying, installation per profile) is [dotai 0008](../../../dotai/docs/decisions/0008-onboarding-by-detection-and-base-profile.md).
+> **Partially superseded by [dotai 0023](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md): sub-profiles.** The engine half (detection by content, approval before applying, installation per profile) is [dotai 0008](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0008-onboarding-by-detection-and-base-profile.md).
 
 ## Context
 

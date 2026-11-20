@@ -35,6 +35,10 @@ First decide: does the request authorize a change? Then pick a type. Move to the
 
 Delegate research, audits and bulk mechanical work to the other harness via the `delegate` skill. Keep small changes, bugs and exploration here.
 
+## Tests
+
+A test earns its place only if it fails when the behavior it names breaks. Test behavior through the public interface; no tests that restate the code, assert mocks, or pin wording that is not a contract. One strong test beats several weak ones. A bug fix starts with a failing regression test. Never weaken, skip or delete a failing test to get green: fix the code, or say why the test is wrong.
+
 ## Cost
 
 - Every `Agent` launch sets `model` and effort explicitly. Roster: `explorer`, `researcher` (Haiku); `worker`, `reviewer` (Sonnet); `judge` (Opus, high risk and taste only).

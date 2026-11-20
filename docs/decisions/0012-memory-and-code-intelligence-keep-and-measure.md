@@ -20,7 +20,7 @@ Engram stays as the backend, with saving via hooks and bounded injection; native
 - **A (chosen):** keep Engram, codegraph per project and only in a measured pilot.
 - **B:** remove codegraph. Rejected: the maintainer's supported hypothesis is that it is poorly integrated, not useless (only for TS/web).
 - **C:** expand codegraph. Rejected: there is no independent evidence of savings (vendor: −62% tokens; a preprint measured quality at 83% versus 92%).
-- **D:** global codegraph registration. Rejected: it costs ~1.1k tokens in projects without an index and in ~80 worktrees; registration goes at the project level.
+- **D:** global codegraph registration. Rejected: it costs ~1.1k tokens in projects without an index and in every worktree; registration goes at the project level.
 - **E:** index Godot. Rejected: codegraph does not support GDScript; Serena requires an open editor, which conflicts with "no editor" and with agy.
 
 ## Consequences

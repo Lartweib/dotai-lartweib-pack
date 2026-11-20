@@ -59,7 +59,7 @@ The hooks run `node ${DOTAI_PROJECT_TOOLS}/<tool>.mjs` with the path bare, so a 
 
 ## Dropped
 
-`context7` (0 calls ever, by policy), Vercel and Supabase MCPs.
+`context7` (never called; dropped by policy), Vercel and Supabase MCPs.
 
 ## TODO(trial)
 

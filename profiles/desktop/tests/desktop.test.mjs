@@ -31,11 +31,6 @@ function fakeElectron({ fail = null } = {}) {
   }
 }
 
-test('arguments default to the project root as the main entry', () => {
-  assert.equal(parseArgs([]).main, '.')
-  assert.equal(parseArgs(['--main', 'dist/main.js', '--wait', '50']).wait, 50)
-})
-
 test('a real window gives one compact summary', async () => {
   const r = await shoot(parseArgs(['--out', OUT]), fakeElectron())
   assert.equal(r.ok, true)

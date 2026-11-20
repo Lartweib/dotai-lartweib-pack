@@ -34,6 +34,9 @@ test('the request shape of each harness gives the path and whether it is a range
   assert.deepEqual(readRequest({ toolCall: { name: 'read_file', args: { Path: 'c', StartLine: 1, EndLine: 3 } } }), { path: 'c', partial: true })
   assert.deepEqual(readRequest({ toolCall: { name: 'view_file', args: { AbsolutePath: 'c' } } }), { path: 'c', partial: false })
   assert.deepEqual(readRequest({ toolCall: { name: 'view_file', args: { AbsolutePath: 'c', StartLine: 1, EndLine: 9 } } }), { path: 'c', partial: true })
+  // agy outline and code-item reads return part of a file: ranges.
+  assert.deepEqual(readRequest({ toolCall: { name: 'view_file_outline', args: { AbsolutePath: 'c' } } }), { path: 'c', partial: true })
+  assert.deepEqual(readRequest({ toolCall: { name: 'view_code_item', args: { File: 'c', NodePaths: ['A.b'] } } }), { path: 'c', partial: true })
   assert.deepEqual(readRequest({}), { path: '', partial: false })
 })
 
@@ -110,11 +113,6 @@ test('a denied path is refused in every harness, whatever its size or range; .en
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
-})
-
-test('agy outline and code-item reads give their path and count as ranges', () => {
-  assert.deepEqual(readRequest({ toolCall: { name: 'view_file_outline', args: { AbsolutePath: 'c' } } }), { path: 'c', partial: true })
-  assert.deepEqual(readRequest({ toolCall: { name: 'view_code_item', args: { File: 'c', NodePaths: ['A.b'] } } }), { path: 'c', partial: true })
 })
 
 test('agy content searches and scripts give their scope, includes and script; other tools none', () => {

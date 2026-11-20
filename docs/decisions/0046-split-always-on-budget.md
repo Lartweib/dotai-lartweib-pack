@@ -9,7 +9,7 @@ supersedes: []
 
 ## Context
 
-[0008](0008-always-on-budget-values.md) set one always-on cap, 3,200 real tokens in Claude Code and agy. A measurement of the author's projects (2026-11-03) showed that one number mixes two costs with different risks:
+[0008](0008-always-on-budget-values.md) set one always-on cap, 3,200 real tokens in Claude Code and agy. A measurement of real profile sets (2026-11-03) showed that one number mixes two costs with different risks:
 
 - **Rules** (base and profile rules) are read as instructions: past a few thousand tokens, adherence drops (instruction dilution).
 - **Listing** (skill and agent descriptions) is read only to pick a skill or agent; Claude Code has its own listing budget.
@@ -42,11 +42,11 @@ Externals a profile expects count toward its listing. Onboarding (`dotai-analyze
 - Accepted cost: a project with `web`, `cloudflare` and `video` sits at the rules cap (base ~1,400 real plus those profiles ~1,100); a new rule there must trim another.
 - Over the per-entry limit today: `lartweib-taste` (224 characters, ~112 real); `browser-tooling` and `video-frames` are at it (~100). External descriptions over it (impeccable's skill) are flagged, not edited.
 - `seo` is listing-heavy (~2,080 real alone). Claude Code's `skillOverrides: "name-only"` cuts its skills to ~30 static, but its agents stay; it is applied for an audit and removed afterwards ([profiles/seo/README.md](../../profiles/seo/README.md)).
-- Engine state (answer, 2026-11-03): no budget check exists ([dotai 0007](../../../dotai/docs/decisions/0007-always-on-context-budget.md) is proposed, with no way yet for a pack to declare caps), so `dotai-analyze` stays the only check; frontmatter `dotai: { capabilities }` is parsed but no doctor code reads it, so expected externals stay in each profile README; `claudecode.skillOverrides` is replaced whole by the last layer (only `env` merges per key), so two profiles setting it are a `profile-conflict` ([PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md#settings)). All three are engine work after v1.
+- Engine state (answer, 2026-11-03): no budget check exists ([dotai 0007](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0007-always-on-context-budget.md) is proposed, with no way yet for a pack to declare caps), so `dotai-analyze` stays the only check; frontmatter `dotai: { capabilities }` is parsed but no doctor code reads it, so expected externals stay in each profile README; `claudecode.skillOverrides` is replaced whole by the last layer (only `env` merges per key), so two profiles setting it are a `profile-conflict` ([PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md#settings)). All three are engine work after v1.
 
 ## Evidence
 
-- Analysis script and per-project measurement, 2026-11-03 (internal research, not published).
+- Analysis script and per-profile-set measurement, 2026-11-03 (internal research, not published).
 - Claude Code memory docs: keep `CLAUDE.md` under 200 lines; longer files reduce adherence (https://code.claude.com/docs/en/memory).
 - Claude Code skills docs: the listing budget scales at 1% of the context window and drops descriptions on overflow; an entry is truncated at 1,536 characters; `skillOverrides` `"name-only"` lists a skill without its description (https://code.claude.com/docs/en/skills, "Skill descriptions are cut short").
 - IFScale, instruction-following at scale (https://arxiv.org/abs/2507.11538).

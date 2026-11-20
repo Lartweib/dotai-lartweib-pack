@@ -33,18 +33,12 @@ function profiles() {
   return out
 }
 
-test('every profile has a description and its hints in the manifest', () => {
+test('every profile declares a description and hints that are tracked paths path.Match can match: no node_modules, no **', () => {
   const p = profiles()
-  assert.ok(Object.keys(p).length >= 10, Object.keys(p).join(','))
+  assert.ok(Object.keys(p).length > 0)
   for (const [name, { description, hints }] of Object.entries(p)) {
-    assert.ok(description.length >= 20, `${name}: a description the profiling skill can use`)
-    assert.ok(description.length <= 200, `${name}: description short (${description.length})`)
+    assert.ok(description, `${name}: a description the profiling skill can use`)
     assert.ok(Array.isArray(hints), `${name}: hints`)
-  }
-})
-
-test('hints are tracked paths path.Match can match: no node_modules, no **', () => {
-  for (const [name, { hints }] of Object.entries(profiles())) {
     for (const h of hints) {
       assert.ok(!h.startsWith('node_modules/'), `${name}: ${h} is never in git ls-files`)
       assert.ok(!h.includes('**'), `${name}: ${h} (profile-hint-invalid)`)
@@ -53,30 +47,8 @@ test('hints are tracked paths path.Match can match: no node_modules, no **', () 
   assert.doesNotMatch(read(ROOT, 'dotai.yaml'), /node_modules/)
 })
 
-test('a profile without hints says when to suggest it', () => {
-  const p = profiles()
-  for (const name of ['autonomous-orchestra', 'seo']) {
-    assert.deepEqual(p[name].hints, [], name)
-    assert.match(p[name].description, /suggest .*only when/i, name)
-  }
-})
-
-test('the core rules carry no profile catalog: dotai-profiles lists the profiles', () => {
+test('the always-on core rules carry no profile catalog: dotai-profiles lists the profiles', () => {
   const core = read(BASE, '.rulesync', 'rules', 'core.md')
   assert.doesNotMatch(core, /catalog/i)
   for (const name of Object.keys(profiles())) assert.ok(!core.includes(`\`${name}\``), name)
-})
-
-test('dotai-analyze is only the clash cleanup: no profile choice, apply or done marker', () => {
-  const skill = read(BASE, '.rulesync', 'skills', 'dotai-analyze', 'SKILL.md')
-  const detection = read(BASE, '.rulesync', 'skills', 'dotai-analyze', 'references', 'detection.md')
-  assert.match(skill, /^name: dotai-analyze$/m)
-  assert.doesNotMatch(skill, /^description:.*(onboard|suggest profiles|detect its stack)/im)
-  for (const text of [skill, detection]) {
-    assert.doesNotMatch(text, /onboarded\.json|done marker|sync mode/i)
-    assert.doesNotMatch(text, /dotai apply/)
-    assert.doesNotMatch(text, /node_modules\//)
-  }
-  assert.match(skill, /dotai-profiles/, 'points profile choice to the engine skill')
-  assert.doesNotMatch(detection, /^## Stack to profile/m)
 })

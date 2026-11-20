@@ -11,7 +11,7 @@ origin: dotai 0024
 
 SDD fell out of use because of drift; the three vendors agree that the workflow depends on the task. The ideas of ODD are taken without turning them into a methodology with a large fixed prompt, which would reintroduce the cost that [0008](0008-always-on-budget-values.md) cuts.
 
-It resolves open question P-C1 (does SDD remain as an on-demand package or is it dropped?) and **completes the answer to P-01** (which previous tools are kept?): only engram, installed directly. From ODD, ideas are kept, not code: (1) the gate "does this authorize a change?", (2) a single task file only for substantial work, (3) delegating for a named reason and with an evidence budget. RDD (frozen receipts) is not kept, nor is any skill (`branch-pr`, `chained-pr`, etc. have 0 uses).
+It resolves open question P-C1 (does SDD remain as an on-demand package or is it dropped?) and **completes the answer to P-01** (which previous tools are kept?): only engram, installed directly. From ODD, ideas are kept, not code: (1) the gate "does this authorize a change?", (2) a single task file only for substantial work, (3) delegating for a named reason and with an evidence budget. RDD (frozen receipts) is not kept, nor is any skill (`branch-pr`, `chained-pr`, etc. are unused).
 
 ## Decision
 

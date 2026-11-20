@@ -8,7 +8,7 @@ tags: [release, versioning, ci, distribution]
 
 ## Context
 
-Users fetch the pack with `dotai pack add https://github.com/<owner>/dotai-lartweib-pack --ref <ref>` ([dotai 0044](../../../dotai/docs/decisions/0044-git-pack-distribution.md)). A ref is a tag, a branch or a full commit; a branch is accepted with the warning `ref-branch`, and the installed commit stays fixed until `dotai pack update`. A git pack's identity is the repository (`github.com/<owner>/<repo>`, lowercased), not the manifest `name`, which is only a label. The fetch refuses links, submodules, `.git` paths and a tree over 10,000 files or 64 MiB, then runs `dotai validate`. The repository is private for now, and there is no GitHub Actions quota for it (author, 2026-11-19).
+Users fetch the pack with `dotai pack add https://github.com/<owner>/dotai-lartweib-pack --ref <ref>` ([dotai 0044](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0044-git-pack-distribution.md)). A ref is a tag, a branch or a full commit; a branch is accepted with the warning `ref-branch`, and the installed commit stays fixed until `dotai pack update`. A git pack's identity is the repository (`github.com/<owner>/<repo>`, lowercased), not the manifest `name`, which is only a label. The fetch refuses links, submodules, `.git` paths and a tree over 10,000 files or 64 MiB, then runs `dotai validate`. The repository is private for now, and there is no GitHub Actions quota for it (author, 2026-11-19).
 
 ## Decision
 
@@ -34,5 +34,5 @@ The sources do not record other alternatives.
 
 ## Evidence
 
-- [dotai 0044](../../../dotai/docs/decisions/0044-git-pack-distribution.md), [PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md), and the engine's own `ci.yml` and `release.yml` (action pinning by commit, the tag-on-main check).
+- [dotai 0044](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0044-git-pack-distribution.md), [PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md), and the engine's own `ci.yml` and `release.yml` (action pinning by commit, the tag-on-main check).
 - `scripts/check.mjs` and `scripts/tests/check.test.mjs`.

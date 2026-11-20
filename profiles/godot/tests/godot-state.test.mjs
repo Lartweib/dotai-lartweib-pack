@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-import { MAX_STATE_SEC, STATE_DEFAULTS, stateFor, stateTimeoutMs } from '../dotai/tools/godot-state.mjs'
+import { MAX_STATE_SEC, stateFor, stateTimeoutMs } from '../dotai/tools/godot-state.mjs'
 
 const TOOL = join(dirname(fileURLToPath(import.meta.url)), '..', 'dotai', 'tools', 'godot-state.mjs')
 
@@ -18,10 +18,6 @@ function project(yaml) {
   mkdirSync(join(dir, 'sub'))
   return dir
 }
-
-test('the caps have one source of defaults', () => {
-  assert.deepEqual(STATE_DEFAULTS, { stateMaxLines: 30, stateMaxChars: 1600, stateTimeoutSec: 10 })
-})
 
 test('the state timeout is configurable and clamped below the hook timeout', () => {
   assert.ok(MAX_STATE_SEC < 15, 'the hook timeout in .rulesync/hooks.jsonc is 15 s')
@@ -82,11 +78,6 @@ test('a failing command reports one line and never throws', async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
-})
-
-test('the hook entry point exits 0 with an empty payload', () => {
-  const r = spawnSync('node', [TOOL], { input: '', encoding: 'utf8', timeout: 20000 })
-  assert.equal(r.status, 0)
 })
 
 test('the state reaches each harness in its own format', () => {

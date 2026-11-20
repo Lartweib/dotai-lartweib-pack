@@ -18,7 +18,7 @@ Source: `AgriciDaniel/claude-seo`, MIT (`LICENSE.txt` in each installed skill).
 |---|---|
 | Skills (9) | `seo`, `seo-audit`, `seo-page`, `seo-technical`, `seo-schema`, `seo-sitemap`, `seo-content`, `seo-images`, `seo-geo` |
 | Agents (7) | `seo-technical`, `seo-content`, `seo-schema`, `seo-geo`, `seo-sxo`, `seo-performance`, `seo-sitemap` |
-| Drop | the other 15 skills and 10 agents (0 calls), `seo-visual` above all |
+| Drop | the other 15 skills and 10 agents (unused), `seo-visual` above all |
 
 Required patch: each kept agent declares `model: sonnet` but no `effort`, and the base Agent hook rejects a launch without both (0030). The patch adds `effort: medium` to each. `seo-sxo` reads `skills/seo-sxo/references/`, so keeping that agent also needs the `seo-sxo` skill's references. The author keeps `seo-sxo` (2026-11-02): it is the only agent that checks search intent against the live results page, so the patch also copies its references.
 
@@ -30,7 +30,7 @@ Listing only, no rules: the 9 skills cost 742 static tokens and the 7 agents 298
 
 While applied, Claude Code can list the skills by name only. `skillOverrides` (Claude Code settings) takes a value per skill name: `"on"`, `"name-only"` (listed without its description; `/name` still works), `"user-invocable-only"` (hidden from the model, `/name` kept) or `"off"`. It works in user, project and local settings, matched by skill name; plugin skills are not affected, but this suite installs plain skills (`~/.claude/skills/seo-*`). Sources: [skills docs](https://code.claude.com/docs/en/skills), "Override skill visibility from settings" and "Skill descriptions are cut short" (which suggests `name-only` for low-priority entries); the settings schema of the installed Claude Code 2.1.317 has the same four values. With all 9 skills `name-only` they cost ~30 static, so the profile drops to ~330 static (~660 real). The 7 agents stay: Claude Code has no equivalent for agent descriptions, and agy none for either.
 
-The pack format can carry it: a profile's `dotai/settings.yaml` is passed through as-is to `.claude/settings.local.json` at project scope ([PACK-FORMAT, Settings](../../../dotai/docs/PACK-FORMAT.md#settings)). Not shipped yet, and not measured; to enable it, add `profiles/seo/dotai/settings.yaml`:
+The pack format can carry it: a profile's `dotai/settings.yaml` is passed through as-is to `.claude/settings.local.json` at project scope ([PACK-FORMAT, Settings](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md#settings)). Not shipped yet, and not measured; to enable it, add `profiles/seo/dotai/settings.yaml`:
 
 ```yaml
 claudecode:

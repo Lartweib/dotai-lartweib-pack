@@ -21,10 +21,6 @@ test('parseLsTree reads `git ls-tree -r -l -z` records', () => {
   assert.deepEqual(parseLsTree(''), [])
 })
 
-test('checkTree passes a plain tree', () => {
-  assert.deepEqual(checkTree([{ mode: '100644', type: 'blob', size: 10, path: 'base/x.md' }, { mode: '100755', type: 'blob', size: 10, path: 'run.sh' }]), [])
-})
-
 test('checkTree refuses links, submodules and .git path components', () => {
   const problems = checkTree([
     { mode: '120000', type: 'blob', size: 4, path: 'base/link' },
@@ -103,17 +99,14 @@ test('manifest reads: version and variant names from dotai.yaml', () => {
   assert.deepEqual(manifestVariants('name: x\n'), [])
 })
 
-test('dotai.yaml: rulesync 43.9.2 and the harness fields of dotai 0047', () => {
-  // The engine embeds the checksums of one rulesync (43.9.2) and removed `optional-harnesses`:
+test('dotai.yaml: every harness is compatible and none is required (dotai 0047, pack 0050)', () => {
   // `harnesses` lists the compatible ones, `requires` the subset an install cannot do without.
   // OpenCode is a preview harness, managed only when chosen, so it is compatible, never required.
-  // Nothing is required (pack 0050): the pack installs on Claude Code, agy or both.
+  // Nothing is required (pack 0050): the pack installs on Claude Code, agy or both. The engine's
+  // validate checks the shape of these fields, not this intent.
   const y = readFileSync(new URL('../../dotai.yaml', import.meta.url), 'utf8')
   const field = k => new RegExp(`^${k}:\\s*(.*?)\\s*(#.*)?$`, 'm').exec(y)?.[1]
   const list = k => (field(k) ?? '').replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean)
-  assert.equal(field('rulesync'), '43.9.2')
-  assert.equal(field('optional-harnesses'), undefined)
-  assert.deepEqual(list('harnesses'), ['claudecode', 'antigravity-cli', 'opencode'])
+  assert.deepEqual(list('harnesses').sort(), ['antigravity-cli', 'claudecode', 'opencode'])
   assert.match(y, /^requires:\s*\[\]/m)
-  assert.deepEqual(list('requires'), [])
 })

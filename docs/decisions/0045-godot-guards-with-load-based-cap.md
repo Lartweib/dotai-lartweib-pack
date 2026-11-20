@@ -39,7 +39,7 @@ The `godot` profile ships a `PreToolUse` Bash guard for every Godot project:
 
 ## Update 2026-11-02: engine answers
 
-A `PreToolUse` matcher of `Bash` fires only in Claude Code ([HARNESS-NOTES](../../../dotai/docs/HARNESS-NOTES.md), hook commands). The guard is now declared once per harness, in `.rulesync/hooks.jsonc` per-harness blocks: Claude Code `Bash`, OpenCode `bash` (the rulesync plugin also matches OpenCode's `shell` as `bash`), and agy `run_command`. The agy name and its payload (`toolCall.args.CommandLine`) come from agy 1.4.12's own hooks docs and `agy plugin validate`; a session has not run the guard in agy yet. The guard's code now imports the shared hook lib from the base ([0044](0044-v1-profile-set.md), update 2026-11-02).
+A `PreToolUse` matcher of `Bash` fires only in Claude Code ([HARNESS-NOTES](https://github.com/Lartweib/dotai/blob/main/docs/HARNESS-NOTES.md), hook commands). The guard is now declared once per harness, in `.rulesync/hooks.jsonc` per-harness blocks: Claude Code `Bash`, OpenCode `bash` (the rulesync plugin also matches OpenCode's `shell` as `bash`), and agy `run_command`. The agy name and its payload (`toolCall.args.CommandLine`) come from agy 1.4.12's own hooks docs and `agy plugin validate`; a session has not run the guard in agy yet. The guard's code now imports the shared hook lib from the base ([0044](0044-v1-profile-set.md), update 2026-11-02).
 
 ## Update 2026-11-02: review fixes
 

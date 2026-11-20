@@ -8,7 +8,7 @@ origin: dotai 0038 (pack half)
 
 # 0028 · The reference pack's `standalone` and `orca` variants
 
-The engine half (variants as a generic capability) is [dotai 0017](../../../dotai/docs/decisions/0017-pack-variants-as-layers.md).
+The engine half (variants as a generic capability) is [dotai 0017](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0017-pack-variants-as-layers.md).
 
 ## Context
 
@@ -26,7 +26,7 @@ What must hold in both variants (the cost policy: validated model/effort pair an
 ## Considered options
 
 - **A (chosen):** two variants of the reference pack.
-- **B:** keep the two Orca modes in the engine (0025). Rejected in [dotai 0017](../../../dotai/docs/decisions/0017-pack-variants-as-layers.md).
+- **B:** keep the two Orca modes in the engine (0025). Rejected in [dotai 0017](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0017-pack-variants-as-layers.md).
 
 ## Consequences
 

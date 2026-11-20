@@ -10,9 +10,9 @@ tags: [memory, engram, hooks, base]
 
 Measurement 3 (2026-11-01, internal research, not published) checked the Engram store against native memory.
 
-- **What is saved:** in a sample of 25 observations, 10 were redundant with the repository, 7 were per-repo facts that fit `MEMORY.md`, 1 was user-level and 7 were noise. Typed preferences and feedback are 1.3% of the store; session summaries are 406 of 3,541.
-- **How it is used:** 852 saves against 104 reads. 57% of searches were empty, and only 3.2% of the store was ever retrieved. When something was retrieved, it was used (12 of 15).
-- **Reliability:** no real write failure on Windows in 936 saves.
+- **What is saved:** in a sample of observations, about 40% were redundant with the repository, about 30% were per-repo facts that fit `MEMORY.md`, one was user-level and the rest were noise. Typed preferences and feedback are about 1% of the store; session summaries are about a ninth of it.
+- **How it is used:** saves outnumber reads about eight to one. 57% of searches were empty, and only 3.2% of the store was ever retrieved. When something was retrieved, it was almost always used.
+- **Reliability:** no real write failure on Windows in regular use.
 
 The author keeps Engram as long-term memory. The problem is what gets saved and when, not the backend. This record resolves OPEN-QUESTIONS measurement 3 and refines [0041](0041-engram-via-cli-and-hooks.md).
 

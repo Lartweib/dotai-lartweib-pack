@@ -22,12 +22,6 @@ function project() {
   return { base, root, home: join(base, 'home') }
 }
 
-test('the module keeps no onboarding of its own: dotai onboards the project (pack 0047)', async () => {
-  const mod = await import('../dotai/tools/session-start.mjs')
-  assert.equal(mod.onboardingHint, undefined)
-  assert.equal(mod.DONE_MARKER, undefined)
-})
-
 // The pack home (hook-errors.log) is a scratch directory: the tests never touch the real one.
 const PACK_HOME = mkdtempSync(join(tmpdir(), 'pack home '))
 process.on('exit', () => rmSync(PACK_HOME, { recursive: true, force: true }))

@@ -29,7 +29,7 @@ agent-browser for interactive exploration; Playwright scripts (or `@playwright/t
 ## Evidence
 
 - Internal research (not published): browser tooling.
-- A draft of the `browser-tooling` skill exists; it will live in the reference pack, not in this repository (see [dotai 0015](../../../dotai/docs/decisions/0015-pack-in-its-own-repository.md)).
+- A draft of the `browser-tooling` skill exists; it will live in the reference pack, not in this repository (see [dotai 0015](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0015-pack-in-its-own-repository.md)).
 
 ## Update 2026-11-19: accepted
 

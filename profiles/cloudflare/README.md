@@ -17,7 +17,7 @@ The cloudflare plugin installs as one unit: 14 skills plus the Cloudflare MCP. O
 
 ## Dropped
 
-The other 12 plugin skills (0 calls) and the Cloudflare MCP (9 calls, needs OAuth). `web-perf` (the one skill used) needs the Chrome DevTools MCP and is not Cloudflare-specific; it is listed as on demand in the `web` README. `nextjs-on-cloudflare` comes back only if a Next-on-Cloudflare project appears.
+The other 12 plugin skills (unused) and the Cloudflare MCP (rarely used, needs OAuth). `web-perf` (the one skill used) needs the Chrome DevTools MCP and is not Cloudflare-specific; it is listed as on demand in the `web` README. `nextjs-on-cloudflare` comes back only if a Next-on-Cloudflare project appears.
 
 ## Docs retrieval
 

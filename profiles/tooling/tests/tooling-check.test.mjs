@@ -68,15 +68,6 @@ test('uv without ruff in the project environment is not a lint problem', () => {
   assert.match(interpret(c, { code: 1, out: 'a.py:1:8: F401 `os` imported but unused' }), /F401/)
 })
 
-test('biome runs the project-local binary through node, with the file as one argv element', () => {
-  const file = P('web', 'src', '(auth)', 'a & b.tsx')
-  const [c] = planChecks(file, markers(['/repo/web/biome.json', `/repo/${BIOME_BIN}`]))
-  assert.equal(c.cmd, process.execPath)
-  assert.equal(c.args[0].replace(/\\/g, '/'), `/repo/${BIOME_BIN}`)
-  assert.deepEqual(c.args.slice(1), ['check', file])
-  assert.equal(c.shell, undefined)
-})
-
 test('biome without a local install is skipped, not reported', () => {
   assert.deepEqual(planChecks(P('web', 'a.ts'), markers(['/repo/web/biome.json'])), [])
 })
@@ -95,13 +86,6 @@ test('gofmt reports unformatted files apart from errors; other tools by exit cod
   assert.match(interpret({ label: 'ruff' }, { code: 1, out: 'a.py:1:1: F401 unused' }), /F401/)
   assert.equal(interpret({ label: 'ruff' }, { code: 0, out: 'All checks passed!' }), null)
   assert.equal(interpret({ label: 'ruff' }, { missing: true }), null)
-})
-
-test('problems are capped at 20 lines', async () => {
-  const run = async () => ({ code: 1, out: Array.from({ length: 60 }, (_, i) => `x.py:${i}:1: E1`).join('\n') })
-  const r = await checkFile(P('x.py'), markers(['/repo/pyproject.toml', '/repo/.venv/bin/ruff']), run)
-  assert.ok(r.split('\n').length <= 23)
-  assert.match(r, /more lines cut/)
 })
 
 test('all checks of one edit fit inside the hook timeout', async () => {

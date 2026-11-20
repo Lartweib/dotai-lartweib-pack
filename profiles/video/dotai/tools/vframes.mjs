@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // vframes — download a video and turn it into frames an agent can actually read.
 // Commands: fetch | frames | sheet | transcribe
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -494,10 +494,64 @@ const WHISPERS = ['faster-whisper-xxl', 'whisper-ctranslate2', 'whisper']
 const COMPUTE_TYPE_CLIS = ['faster-whisper-xxl', 'whisper-ctranslate2']
 const DEFAULT_MODEL = 'large-v3-turbo'
 
-// Only real executables: Node cannot spawn .cmd/.bat without a shell, and the
-// Windows builds of all three ship as .exe.
+// Whisper on a long video and a slow CPU can take a while, but never forever.
+const DEFAULT_TIMEOUT_SEC = 7200
+
+// WHISPER_BIN (like FFMPEG_BIN) names the executable directly; its flag set comes from
+// WHISPER_KIND, else from its file name, else openai-whisper's. Otherwise only real
+// executables on PATH: Node cannot spawn .cmd/.bat without a shell, and the Windows
+// builds of all three ship as .exe.
 export function findWhisper(env = process.env, platform = process.platform) {
+  if (env.WHISPER_BIN) {
+    const stem = basename(env.WHISPER_BIN).replace(/\.(exe|com)$/i, '')
+    const name = WHISPERS.includes(env.WHISPER_KIND) ? env.WHISPER_KIND : WHISPERS.includes(stem) ? stem : 'whisper'
+    return { name, path: env.WHISPER_BIN }
+  }
   return findOnPath(WHISPERS, env, platform)
+}
+
+// Kill a child and everything it started. On Windows taskkill walks the tree; elsewhere
+// the child leads its own process group.
+function killTree(child) {
+  if (process.platform === 'win32') {
+    // By full path: the caller's PATH may not include System32.
+    const taskkill = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe')
+    spawnSync(taskkill, ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', timeout: 15000, windowsHide: true })
+  } else {
+    try {
+      process.kill(-child.pid, 'SIGKILL')
+    } catch {}
+  }
+  try {
+    child.kill('SIGKILL')
+  } catch {}
+}
+
+// Runs the Whisper CLI with a deadline. stdout is the running transcript: drained and
+// dropped, kept out of the agent's context on purpose. Resolves { status, stderr, timedOut }.
+function runBounded(bin, args, timeoutSec) {
+  return new Promise((resolvePromise) => {
+    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' })
+    let stderr = ''
+    let timedOut = false
+    child.stdout.resume()
+    child.stderr.setEncoding('utf8')
+    child.stderr.on('data', (d) => {
+      stderr = (stderr + d).slice(-65536)
+    })
+    const timer = setTimeout(() => {
+      timedOut = true
+      killTree(child)
+    }, timeoutSec * 1000)
+    child.on('error', (e) => {
+      clearTimeout(timer)
+      die(`could not run ${bin}: ${e.message}`)
+    })
+    child.on('close', (status) => {
+      clearTimeout(timer)
+      resolvePromise({ status, stderr, timedOut })
+    })
+  })
 }
 
 function findOnPath(names, env = process.env, platform = process.platform) {
@@ -535,11 +589,13 @@ export function whisperArgs({ name, video, dir, flags, nvidia }) {
   return args
 }
 
-function cmdTranscribe(argv) {
+async function cmdTranscribe(argv) {
   const { positional, flags } = parseArgs(argv)
   const video = positional[0]
-  if (!video) die(`usage: vframes transcribe <video> [--model ${DEFAULT_MODEL}] [--language es] [--device cpu] [--compute-type float32] [--force]`)
+  if (!video) die(`usage: vframes transcribe <video> [--model ${DEFAULT_MODEL}] [--language es] [--device cpu] [--compute-type float32] [--timeout ${DEFAULT_TIMEOUT_SEC}] [--force]`)
   if (!existsSync(video)) die(`no such file: ${video}`)
+  const timeoutSec = flags.timeout === undefined ? DEFAULT_TIMEOUT_SEC : Number(flags.timeout)
+  if (!(timeoutSec > 0)) die('--timeout must be a positive number of seconds')
 
   const dir = dirname(resolve(video))
   const vtt = join(dir, `${basename(video, extname(video))}.vtt`)
@@ -552,8 +608,10 @@ function cmdTranscribe(argv) {
 
   const nvidia = Boolean(findOnPath(['nvidia-smi']))
   const args = whisperArgs({ name: whisper.name, video: resolve(video), dir, flags, nvidia })
-  // stdout is the running transcript: kept out of the agent's context on purpose.
-  const res = run(whisper.path, args, { capture: true })
+  const res = await runBounded(whisper.path, args, timeoutSec)
+  if (res.timedOut) {
+    die(`${whisper.name} timed out after ${timeoutSec} s and was killed with its child processes; retry with a larger --timeout, a smaller --model, or --device cuda`)
+  }
   // whisper-ctranslate2 can log a CUDA error, write nothing and still exit 0,
   // so a missing .vtt is a failure too, reported with the same stderr tail.
   if (res.status !== 0 || !existsSync(vtt)) {
@@ -578,7 +636,7 @@ function main() {
     case 'fetch': cmdFetch(rest); break
     case 'frames': cmdFrames(rest); break
     case 'sheet': cmdSheet(rest); break
-    case 'transcribe': cmdTranscribe(rest); break
+    case 'transcribe': cmdTranscribe(rest).catch((e) => die(e.message)); break
     default:
       console.log(`vframes — video → readable frames
 
@@ -587,8 +645,9 @@ function main() {
                       [--at 1:20,2:33] [--from 1:00] [--to 2:00] [--width 1280] [--max N] [--out DIR]
                       [--dedup] [--dedup-window 4] [--anchors <subs.srt|.vtt>] [--anchor-gap 2]
   sheet      <dir>    [--cols 5] [--rows 6] [--tile 384] [--out DIR]
-  transcribe <video>  [--model large-v3-turbo] [--language es] [--device cpu] [--compute-type float32] [--force]
-                      (opt-in; needs a local Whisper CLI)`)
+  transcribe <video>  [--model large-v3-turbo] [--language es] [--device cpu] [--compute-type float32]
+                      [--timeout 7200] [--force]
+                      (opt-in; needs a local Whisper CLI, or WHISPER_BIN)`)
       process.exit(cmd ? 1 : 0)
   }
 }

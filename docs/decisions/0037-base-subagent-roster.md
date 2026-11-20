@@ -10,7 +10,7 @@ tags: [subagents, models, cost, base]
 
 [0030](0030-explicit-model-and-effort-enforcement.md) rejects generic agents, so the base must ship its own for what they did. Every definition adds to the always-on agent listing ([0008](0008-always-on-budget-values.md)), so the roster stays small. The reviewer is defined in [0036](0036-single-reviewer-by-focus.md).
 
-Usage, 2026-09-06 to 2026-10-30 (internal research, not published): 1,075 launches, 822 generic. Purposes, from a hand-classified sample of 156: implementation 58%, review and audits 7%, tests and measurement 9%, planning 4%, exploration ~3%, visual QA ~3%, external research ~1.5%; 54 judge launches, mostly routine round gates. Profile agents (`seo-*`, `jd-*`, most `sdd-*`) were not used in that window.
+Usage, 2026-09-06 to 2026-10-30 (internal research, not published): most launches were generic subagents. Purposes, from a hand-classified sample: implementation 58%, review and audits 7%, tests and measurement 9%, planning 4%, exploration ~3%, visual QA ~3%, external research ~1.5%; judge launches were mostly routine round gates. Profile agents (`seo-*`, `jd-*`, most `sdd-*`) were not used in that window.
 
 Pricing (Anthropic, cached 2026-10-06): Haiku 5.5 $0.10 / $0.50 per MTok (×5 above 100K-token prompts), Sonnet 5.5 $2 / $10. Third-party benchmarks put Haiku 5.5 near Sonnet 5.5 on bounded coding (SWE-bench Multilingual 83.7% vs 90.3%) and far behind on long agentic tasks (Terminal-Bench 4.0 39.2% vs 70.6%).
 

@@ -8,9 +8,9 @@ tags: [profiles, onboarding, v1]
 
 ## Context
 
-[0043](0043-v1-is-the-complete-pack.md) puts the profiles in v1 and asks for their set to come from the author's usage. A fresh analysis (2026-11-01, internal research, not published) covered about 234k Claude Code tool calls from 2026-09-05 on, the prompt history since April, agy history and marker files in 50 project paths. The candidate set was `godot`, `web`, `desktop`, `tooling`, `video` and `mobile`.
+[0043](0043-v1-is-the-complete-pack.md) puts the profiles in v1 and asks for their set to come from the author's usage. A fresh analysis (2026-11-01, internal research, not published) covered the author's recent Claude Code tool calls, prompt history, agy history and the marker files in their projects. The candidate set was `godot`, `web`, `desktop`, `tooling`, `video` and `mobile`.
 
-Profiles are flat and combinable ([dotai 0023](../../../dotai/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md)), and a name has one owner. A capability used across stacks therefore needs its own profile rather than a copy in each.
+Profiles are flat and combinable ([dotai 0023](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md)), and a name has one owner. A capability used across stacks therefore needs its own profile rather than a copy in each.
 
 ## Decision
 
@@ -18,14 +18,14 @@ v1 ships nine profiles. A project combines the ones it needs.
 
 | Profile | Covers | Evidence |
 |---|---|---|
-| `godot` | Godot 4 games in GDScript | 3 active projects; `godot --headless` in 13,948 commands; `godot-gdscript` the most used skill (83) |
-| `obra` | Long autonomous work: workflows, scheduled runs, monitors; any stack | `Workflow` 272 runs, `Monitor` 1,090, `CronCreate` 55 |
-| `web` | Web framework, build and checks (Astro, Next.js) | 7 web projects; `vitest` 2,097, `tsc` 696, `astro check/build` 177 in one project |
-| `ui` | Design skills and browser capture | 106 design-skill calls in web, Godot and tooling projects; capture scripts 566 runs |
-| `seo` | SEO audits, applied on demand | 1 audit in the window, about 22 since May |
-| `cloudflare` | Wrangler, Workers, Pages | `wrangler` in 144 commands; one project on Cloudflare Pages |
-| `video` | Making and analyzing video | `ffmpeg` 1,245 commands; `video-frames` 18 calls |
-| `tooling` | CLIs, scripts, Go, Python; per-language checks chosen by marker files | `go test` 640, `pytest` 449, `ruff` 295 |
+| `godot` | Godot 4 games in GDScript | several active projects; `godot --headless` among the most frequent commands; `godot-gdscript` the most used skill |
+| `obra` | Long autonomous work: workflows, scheduled runs, monitors; any stack | workflows, monitors and scheduled runs in regular use |
+| `web` | Web framework, build and checks (Astro, Next.js) | several web projects; `vitest`, `tsc` and `astro check/build` in frequent use |
+| `ui` | Design skills and browser capture | design skills used in web, Godot and tooling projects; capture scripts in regular use |
+| `seo` | SEO audits, applied on demand | occasional audits |
+| `cloudflare` | Wrangler, Workers, Pages | `wrangler` in regular use; one project on Cloudflare Pages |
+| `video` | Making and analyzing video | `ffmpeg` in frequent use; `video-frames` used occasionally |
+| `tooling` | CLIs, scripts, Go, Python; per-language checks chosen by marker files | `go test`, `pytest` and `ruff` in frequent use |
 | `desktop` | Electron apps | one Electron app; Tauri has no real use |
 
 - `ui`, `seo` and `cloudflare` are split out of `web`: they are used outside web projects or only sometimes.
@@ -56,26 +56,26 @@ v1 ships nine profiles. A project combines the ones it needs.
 - **`mobile` stays out of v1.** The author first accepted it (Android only), then left it out: it will be designed when a mobile project starts. Research on an Android-only stack (Kotlin + Jetpack Compose suggested) was kept for that moment (internal research, not published).
 - **`desktop` release:** an NSIS installer from electron-builder, published on GitHub Releases. No Steam. Code signing is open: Azure Artifact Signing serves individuals only in the USA and Canada, so not individuals in the EU (organizations in the EU qualify), and the cheap options need an open-source app. The profile ships the release flow with signing as an optional hook.
 - **`desktop` E2E with a real window:** Playwright's Electron support, with a pinned version (an open issue breaks launch on Playwright 1.58 with Electron 30 and later); `wdio-electron-service` is the fallback. Chosen without the author, since they already use Playwright (inferred).
-- **RTK** is not adopted: 0 uses. Its BUSL license (OPEN-QUESTIONS 16) is moot.
+- **RTK** is not adopted: unused. Its BUSL license (OPEN-QUESTIONS 16) is moot.
 - **Answered from usage data** (OPEN-QUESTIONS 6, 10, 13, 14 in part):
-  - No more roles in the base: the custom roles had 0 launches; the base roster of [0037](0037-base-subagent-roster.md) stays.
-  - `context7` is dropped by policy: 0 calls ever.
+  - No more roles in the base: the custom roles were never launched; the base roster of [0037](0037-base-subagent-roster.md) stays.
+  - `context7` is dropped by policy: never called.
   - Warp, the pixel-art MCP and `pixel-agents` leave: Warp is no longer enabled, the pixel-art MCP's project is gone, and the author uninstalled `pixel-agents`.
-  - The Godot MCP (2 calls) and `godot-claude-skills` (1 call, needs the editor) are dropped; `impeccable` goes to `ui`; the 9 design skills with 0 calls are dropped.
+  - The Godot MCP and `godot-claude-skills` (needs the editor) are dropped, both barely used; `impeccable` goes to `ui`; the unused design skills are dropped.
 - **Visual review stays in Claude** (OPEN-QUESTIONS 15): the `reviewer` (Sonnet, reads images) does it. agy is not calibrated as a visual judge (measurement 5 dropped): it failed 73% of earlier trials and approved a defective case. agy keeps research and mechanical work.
 - **No mods in v1** (OPEN-QUESTIONS 20): Orca's panel (`orca`) and the viewer plus the statusline (`standalone`, [0032](0032-variant-parity-by-use-case.md)) cover visibility. A project that needs a panel gets a project mod ([0026](0026-mods-incident-and-value.md)).
-- **`ui` keeps 4 third-party design skills** (`impeccable`, `design-taste-frontend`, `web-design-guidelines`, `mobile-responsive-adaptation`) **and adds `lartweib-taste`.** An analysis of 367 design prompts in 8 web projects showed the four cover method but not the author's expectations, and some of their bans contradict choices the author makes on purpose. The author wants expectations, not a fixed style applied to every site: `lartweib-taste` holds the bar, identity per product, motion, precision and process, and sets no font, palette or theme.
+- **`ui` keeps 4 third-party design skills** (`impeccable`, `design-taste-frontend`, `web-design-guidelines`, `mobile-responsive-adaptation`) **and adds `lartweib-taste`.** An analysis of the author's design prompts across their web projects showed the four cover method but not the author's expectations, and some of their bans contradict choices the author makes on purpose. The author wants expectations, not a fixed style applied to every site: `lartweib-taste` holds the bar, identity per product, motion, precision and process, and sets no font, palette or theme.
 - **`design-taste-frontend` is dropped** (left to the maintainer's judgment by the author): its bans conflict most with the author's choices, it covers marketing pages only, it proposes its own direction instead of following the author's mockup, and its description costs ~840 characters per session. `ui` ships `impeccable`, `web-design-guidelines` and `lartweib-taste`.
 - **`mobile-responsive-adaptation` is dropped** (author, 2026-11-02): it has no published source (generated locally from the gentle-ai skill-creator template), impeccable `adapt` covers about 80% of it, and its triggers overlap impeccable's. What `adapt` lacks (`dvh`/`svh`, `viewport-fit=cover`, 16px inputs, a 320px check) went into an "On phones" list in `lartweib-taste`.
-- **`video-frames` is the author's own** (confirmed 2026-11-02; no published copy found). It gains subtitle-anchored frames, a sliding-window dedup and an opt-in local Whisper transcription, borrowed from `claude-real-video` and `claude-video`; Gemini stays a documented manual option, since the video leaves the machine.
+- **`video-frames` is the author's own** (confirmed 2026-11-02; no published copy found). It gains subtitle-anchored frames, a sliding-window dedup and an opt-in local Whisper transcription, ideas taken from `claude-real-video` and `claude-video` (both MIT; no code copied, credited in the `video` README); Gemini stays a documented manual option, since the video leaves the machine.
 - **Godot guards** (OPEN-QUESTIONS 9): [0045](0045-godot-guards-with-load-based-cap.md).
 
 ## Update 2026-11-02: engine answers
 
 The profile build (2026-11-01) raised engine questions; the engine answered them on 2026-11-02.
 
-- **Hooks from several profiles merge** ([dotai 0040](../../../dotai/docs/decisions/0040-list-files-merged-as-a-union.md), PR #30). `godot`, `web` and `tooling` stage together: checked with `godot,tooling`, `web,ui,tooling`, `godot,web,tooling` and all nine profiles.
-- **Shared code lives in the base.** The hook lib, which was copied into three profiles, is now one base tool, `base/dotai/tools/hook-lib.mjs`. Profile tools import it from the user tools directory (`${DOTAI_TOOLS}`, [PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md)).
+- **Hooks from several profiles merge** ([dotai 0040](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0040-list-files-merged-as-a-union.md), PR #30). `godot`, `web` and `tooling` stage together: checked with `godot,tooling`, `web,ui,tooling`, `godot,web,tooling` and all nine profiles.
+- **Shared code lives in the base.** The hook lib, which was copied into three profiles, is now one base tool, `base/dotai/tools/hook-lib.mjs`. Profile tools import it from the user tools directory (`${DOTAI_TOOLS}`, [PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md)).
 - **Matchers per harness.** A `Bash` matcher fires in neither agy nor OpenCode. Hooks with a matcher go in per-harness blocks (`claudecode:`, `opencode:`, `antigravity-cli:`) and name each harness's own tool. Shell: `Bash`, `bash` and `run_command`. The pack keeps every event that has a matcher out of the shared `hooks` block: rulesync replaces a harness's shared event when that harness's block sets the same event, so a shared entry from another layer would be dropped silently.
 - **Pending in the engine:**
   - `${DOTAI_TOOL:<name>}` in hook commands comes in a later engine change. Until then, hooks run `node <path>` with the path bare, so a project path with spaces breaks them. agy runs hooks without a shell, so even then a path with spaces cannot work there.
@@ -125,4 +125,4 @@ Author decision, delegated; agy 1.5.3 trials:
 
 ## Update 2026-11-19: a tenth profile
 
-Option C rejected a Next/Vercel/Supabase profile. A narrower `vercel` profile (CLI and skill, no MCP) is added by [0049](0049-vercel-profile.md): the author now has two projects on Vercel.
+Option C rejected a Next/Vercel/Supabase profile. A narrower `vercel` profile (CLI and skill, no MCP) is added by [0049](0049-vercel-profile.md): the author now has projects on Vercel.

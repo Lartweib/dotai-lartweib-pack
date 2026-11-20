@@ -123,7 +123,7 @@ Consequences:
 - Exhaustion is detected by failure: when `agy -p` returns a quota error in its JSON, `delegate` marks that pool exhausted for the rest of the run, retries once on the other pool if it is not known to be over the threshold, and otherwise reports the failure to the orchestrator.
 - The hard cap of autonomous work ([0019](0019-quota-cap-by-who-is-in-charge.md)) only applies to agy pools when quota data is fresh; with unknown data the quota error is the brake.
 - Detection (measurement 1, 2026-10-26): exhausted when `status != "SUCCESS"` and `error` matches `out of quota|RESOURCE_EXHAUSTED|quota` (case-insensitive). No real sample yet; confirm on the first real exhaustion.
-- Assumption: the author's agy account is subscription-only, with no paid AI credits, so exhaustion fails instead of spending credits (agy can fall back to AI credits once out of quota). If AI credits are ever enabled, this decision must be revisited.
+- Assumption: the agy account is subscription-only, with no paid AI credits, so exhaustion fails instead of spending credits (agy can fall back to AI credits once out of quota). If AI credits are ever enabled, this decision must be revisited.
 
 ## Update 2026-10-31: a bad result gets one retry in agy
 

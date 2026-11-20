@@ -9,7 +9,7 @@ origin: dotai 0013
 
 ## Context
 
-2.64M Gemini tokens have already been moved off Claude's quota with `agy-task.mjs`; the two current runners (`agy_review.py` and `agy-task.mjs`) are being unified. The October 16 incident (Claude worked from OpenCode via the API, consumed the credits and left work half-done) shows the risk of delegation without direction.
+Work has already been moved off Claude's quota to Gemini with `agy-task.mjs`; the two current runners (`agy_review.py` and `agy-task.mjs`) are being unified. An earlier incident (Claude worked from OpenCode via the API, consumed the credits and left work half-done) shows the risk of delegation without direction.
 
 Approved by the maintainer in conversation.
 
@@ -44,7 +44,7 @@ OpenCode stays the optional harness for API credits. Pi (`@earendil-works/pi-cod
 
 ## Update 2026-11-19: OpenCode is a compatible preview harness
 
-Engine decision [dotai 0047](../../../dotai/docs/decisions/0047-harness-selection-and-preview-harnesses.md) removed `optional-harnesses`: `harnesses` now lists the harnesses a pack is compatible with, and `requires` those an install cannot do without. `dotai.yaml` lists all three as compatible and requires Claude Code and agy, as `harnesses` did before; OpenCode is compatible and never required. The engine marks OpenCode as a preview, so an install manages it only when `--harness` or the saved choice names it. That keeps the role above: optional, for API credits.
+Engine decision [dotai 0047](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0047-harness-selection-and-preview-harnesses.md) removed `optional-harnesses`: `harnesses` now lists the harnesses a pack is compatible with, and `requires` those an install cannot do without. `dotai.yaml` lists all three as compatible and requires Claude Code and agy, as `harnesses` did before; OpenCode is compatible and never required. The engine marks OpenCode as a preview, so an install manages it only when `--harness` or the saved choice names it. That keeps the role above: optional, for API credits.
 
 ## Update 2026-11-19: direction as configuration
 

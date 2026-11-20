@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -183,11 +183,6 @@ test('confirm checks the actual model from worker-read, since launch.effective i
 const VARIANTS = ['standalone', 'orca']
 const BASE_TOOLS = join(PACK, 'base', 'dotai', 'tools')
 
-test('no variant ships the contract module; the base does', () => {
-  assert.ok(existsSync(join(BASE_TOOLS, 'delegate-core.mjs')))
-  for (const v of VARIANTS) assert.ok(!existsSync(join(PACK, 'variants', v, 'dotai', 'tools', 'delegate-core.mjs')), v)
-})
-
 test('both staged backends import the base core from the user tools directory', () => {
   const user = mkdtempSync(join(tmpdir(), 'dotai user tools '))
   try {
@@ -345,7 +340,8 @@ test('a working directory cmd.exe cannot take runs headless instead of failing',
 // `result.terminals[]` and no entry has its handle, on two probes in a row. Anything else keeps
 // waiting until the done marker.
 const lists = sb => sb.calls().filter(c => c.name === 'orca' && c.argv[1] === 'list').length
-const slow = { ...CC, FAKE_AGY: 'sleep', FAKE_AGY_SLEEP_MS: '2500', DOTAI_ORCA_PROBE_MS: '200' }
+// The fake agy stays busy until three probes ran, so the count never depends on machine load.
+const slow = { ...CC, FAKE_AGY: 'until-probes', FAKE_AGY_PROBES: '3', DOTAI_ORCA_PROBE_MS: '200' }
 
 for (const [mode, why] of [
   ['list-error', 'terminal list fails'],

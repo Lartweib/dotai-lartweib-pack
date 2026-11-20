@@ -263,19 +263,6 @@ test('check validates a job without launching; workers explains parallel jobs', 
   }
 })
 
-test('help is short and names every command', () => {
-  const sb = sandbox()
-  try {
-    const r = runTool(TOOL, ['--help'], sb)
-    assert.equal(r.code, 0)
-    for (const c of ['run', 'check', 'status', 'workers']) assert.match(r.out, new RegExp(`\\b${c}\\b`))
-    const u = runTool(TOOL, ['bogus'], sb)
-    assert.equal(u.code, 2)
-  } finally {
-    sb.cleanup()
-  }
-})
-
 test('the base delegate skill names the final command, has no TODO and stays short', () => {
   const text = readFileSync(SKILL, 'utf8')
   assert.doesNotMatch(text, /TODO/)

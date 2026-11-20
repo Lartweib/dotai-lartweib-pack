@@ -7,11 +7,15 @@ Making and analyzing video (pack 0040, 0044). Not staged.
 | Path | What |
 |---|---|
 | `.rulesync/rules/video.md` | QA with capped scripts, frames through contact sheets, no media reads |
-| `.rulesync/skills/video-frames/` | Frames an agent can read (survey, then zoom). The maintainer's own skill (committed in one of their projects 2026-09-06), vendored with the script path pointing at the tools directory, plus caption anchors, sliding-window dedup and the `transcribe` fallback |
-| `dotai/tools/vframes.mjs` (+ `.sh`, `.ps1`) | The skill's script, extended: `frames --anchors` (frames at caption cues, idea from `HUANGCHIHHUNGLeo/claude-real-video` `--text-anchors`), `--dedup-window` (dHash over the last N kept frames), `transcribe` (local Whisper CLI, opt-in) |
+| `.rulesync/skills/video-frames/` | Frames an agent can read (survey, then zoom). The maintainer's own skill, vendored with the script path pointing at the tools directory, plus caption anchors, sliding-window dedup and the `transcribe` fallback |
+| `dotai/tools/vframes.mjs` (+ `.sh`, `.ps1`) | The skill's script, extended: `frames --anchors` (frames at caption cues, idea from `HUANGCHIHHUNGLeo/claude-real-video` `--text-anchors`), `--dedup-window` (dHash over the last N kept frames), `transcribe` (local Whisper CLI, opt-in, capped by `--timeout`, which kills the CLI and its children) |
 | `dotai/tools/ffqa.mjs` (+ `.sh`, `.ps1`) | `probe`, `loudness` (ebur128), `freeze`, `black`, `silence`: a few lines each, at most 10 intervals |
 | `dotai/tools/read-size.video.txt` | Media and render paths |
 | `tests/` | `node --test "profiles/video/tests/*.test.mjs"` (a real ffmpeg clip when ffmpeg is installed) |
+
+## Credits
+
+`vframes.mjs` is original code; no upstream code is copied. Caption-anchored frames and the sliding-window dedup are inspired by [`HUANGCHIHHUNGLeo/claude-real-video`](https://github.com/HUANGCHIHHUNGLeo/claude-real-video) (MIT), and the opt-in local Whisper transcription by [`bradautomates/claude-video`](https://github.com/bradautomates/claude-video) (MIT).
 
 ## External items (try; not shipped)
 

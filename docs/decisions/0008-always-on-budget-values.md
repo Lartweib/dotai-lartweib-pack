@@ -7,7 +7,7 @@ origin: dotai 0012 (pack half)
 
 # 0008 · Always-on budget values
 
-The engine half (a pack declares the caps; `dotai doctor` measures them) is [dotai 0007](../../../dotai/docs/decisions/0007-always-on-context-budget.md).
+The engine half (a pack declares the caps; `dotai doctor` measures them) is [dotai 0007](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0007-always-on-context-budget.md).
 
 ## Context
 

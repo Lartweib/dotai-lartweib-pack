@@ -9,7 +9,7 @@ origin: dotai 0008
 
 ## Context
 
-Engram is the only verified option with a shared store between Claude Code ↔ agy without an extra process (363 `mem_save` calls against 36 searches, 10:1). The cost lies in the always-on protocol, not in storage ([0012](0012-memory-and-code-intelligence-keep-and-measure.md) complements this).
+Engram is the only verified option with a shared store between Claude Code ↔ agy without an extra process (saves outnumber searches about ten to one). The cost lies in the always-on protocol, not in storage ([0012](0012-memory-and-code-intelligence-keep-and-measure.md) complements this).
 
 ## Decision
 

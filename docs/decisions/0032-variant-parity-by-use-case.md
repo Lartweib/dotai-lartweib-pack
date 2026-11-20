@@ -31,7 +31,7 @@ Known gaps in `standalone` to be filled:
 
 - Good: dropping Orca never loses a use case.
 - Accepted cost: `standalone` carries more of its own pieces than `orca`.
-- Constraint: mods are never installed at user scope, so variants carry none ([PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md), [dotai 0011](../../../dotai/docs/decisions/0011-mods-always-project-scoped.md)), and the panel is after v1 ([0029](0029-reference-pack-v1-scope.md)). Resolved in the update below.
+- Constraint: mods are never installed at user scope, so variants carry none ([PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md), [dotai 0011](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0011-mods-always-project-scoped.md)), and the panel is after v1 ([0029](0029-reference-pack-v1-scope.md)). Resolved in the update below.
 
 ## Update 2026-10-26: visibility in `standalone`
 

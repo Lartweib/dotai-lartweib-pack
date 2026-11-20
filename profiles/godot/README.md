@@ -51,13 +51,13 @@ The hooks run `node ${DOTAI_PROJECT_TOOLS}/<tool>.mjs` with the path bare, so a 
 
 ## Dropped
 
-Godot MCP (2 calls), `godot-claude-skills` (needs the editor), codegraph (no GDScript support; never index Godot projects, pack 0012). `gdlint` on edit is not shipped: it has 0 uses in Godot projects (measurement 6). gdstyle 0.6.0 (measurement 6): fast (0.5 s for 415 files), but its output is style noise and it misses syntax errors; `--check-only` is the gate.
+Godot MCP (barely used), `godot-claude-skills` (needs the editor), codegraph (no GDScript support; never index Godot projects, pack 0012). `gdlint` on edit is not shipped: it is unused in Godot projects (measurement 6). gdstyle 0.6.0 (measurement 6): fast (0.5 s for 415 files), but its output is style noise and it misses syntax errors; `--check-only` is the gate.
 
 ## TODO(trial)
 
 - OpenCode on Windows: which shell runs `bash`. The guard decides from the environment (`MSYSTEM`, `SHELL`); without them it suggests `godot-run`, which works in every shell.
 - The Claude Code `PowerShell` tool firing `PreToolUse` hooks is community-confirmed, not documented; check it in a session. Partial (2026-11-19): Claude Code 2.1.328 lists `PowerShell` next to `Bash` in its init tools (run with `CLAUDE_CODE_USE_POWERSHELL_TOOL=1`), and the shell guard denies a `PowerShell` payload for `Get-Content sub/.env`; the session itself did not run because the isolated configuration was not logged in.
-- Tune `reserveMb` once on the 32 GB machine with several headless suites running.
+- Tune `reserveMb` once on a typical machine with several headless suites running.
 
 ## Verified on agy (trial 2026-11-19, agy 1.5.3, Windows)
 

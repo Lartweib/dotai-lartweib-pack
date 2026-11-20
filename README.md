@@ -16,6 +16,23 @@ It is a pack for [dotai](https://github.com/Lartweib/dotai), the cross-harness c
 - **No MCP by default**: scripts and CLIs first; the pack ships no MCP servers.
 - **Secrets denied**: permissions deny reads of `.env` files, keys and cloud credentials.
 
+## Context budget
+
+Every always-on token is paid on each request, by the main thread and by every subagent. The pack sets limits so it does not load context nobody asked for. Token counts are real tokens as the harness bills them.
+
+- **Caps** ([decision 0046](docs/decisions/0046-split-always-on-budget.md)): base plus profile rules ≤ 2,500; skill and agent descriptions ≤ ~2,000, and ≤ ~100 per entry; total warns at 4,000 and fails at 5,000.
+- **What the base adds** ([decision 0008](docs/decisions/0008-always-on-budget-values.md)): +1,759 in Claude Code and +1,630 in agy, on top of each harness's own floor (~23k for Claude Code's system prompt and built-in tools, ~7.2k for agy) that no pack controls.
+- **Skills load on demand**: only their descriptions are always on; the body is read when a task needs it.
+- **CLIs instead of MCP servers**, per choice:
+
+| Need | The pack uses | Instead of | Source |
+|---|---|---|---|
+| Memory | Engram through its CLI and a `memory` skill (~50 listed) | Engram's MCP (~1.9k per session) | [0041](docs/decisions/0041-engram-via-cli-and-hooks.md) |
+| Browser, interactive | agent-browser (~290 of output for a 10-step flow) | Playwright MCP (~5.3k of schemas per session) | [0011](docs/decisions/0011-browser-tooling-split.md) |
+| GitHub | `gh` (~0 fixed) | GitHub MCP (11–55k of schemas, vendor-reported) | [DESIGN P1](docs/DESIGN.md#2-cross-cutting-principles), [0014](docs/decisions/0014-base-principles-scripts-hooks-deny.md) |
+
+Playwright itself stays: the `ui` profile uses Playwright scripts or `@playwright/test` for repeatable, bulk or measured browser work, and agent-browser for interactive exploration ([0011](docs/decisions/0011-browser-tooling-split.md)). Only the Playwright MCP is left out.
+
 ## Install
 
 Requirements: [dotai](https://github.com/Lartweib/dotai#install), git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
@@ -259,3 +276,7 @@ Run `node scripts/check.mjs` before tagging: the tests (`node --test`), `dotai v
 ## Get help
 
 Questions and bug reports go to the [issues](https://github.com/Lartweib/dotai-lartweib-pack/issues).
+
+## License
+
+[MIT](LICENSE). Vendored skills keep their own licenses: the Cloudflare skills in `profiles/cloudflare/` are Apache-2.0, with their `LICENSE` and `NOTICE` files next to them.

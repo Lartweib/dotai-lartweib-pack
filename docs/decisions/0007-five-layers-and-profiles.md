@@ -9,7 +9,7 @@ origin: dotai 0011 (pack half)
 
 # 0007 · Five-layer product, v1 order and profiles
 
-> **Superseded by [0029](0029-reference-pack-v1-scope.md)** (2026-10-24). Kept as history; only 0029 is binding. The engine half is [dotai 0006](../../../dotai/docs/decisions/0006-five-layer-product-and-v1-order.md).
+> **Superseded by [0029](0029-reference-pack-v1-scope.md)** (2026-10-24). Kept as history; only 0029 is binding. The engine half is [dotai 0006](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0006-five-layer-product-and-v1-order.md).
 
 ## Context
 

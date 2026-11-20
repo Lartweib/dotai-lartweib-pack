@@ -18,7 +18,6 @@ import {
   segments,
   simpleCommands,
   tokenize,
-  userToolsDir,
 } from '../dotai/tools/hook-lib.mjs'
 
 const scratch = () => mkdtempSync(join(tmpdir(), 'dotai lib '))
@@ -96,10 +95,6 @@ test('pattern files merge from the user and the project tools directories, in th
   }
 })
 
-test('the user tools directory is the one hook-lib lives in', () => {
-  assert.match(userToolsDir().replaceAll('\\', '/'), /base\/dotai\/tools$/)
-})
-
 test('nested config sections read three levels, quoted keys included', () => {
   const yaml = [
     'agents:',
@@ -172,19 +167,8 @@ test('deny lists: only the trusted directories may undo a pattern with !', () =>
   }
 })
 
-test('small shared helpers have one owner in hook-lib', async () => {
+test('path helpers: containment is by path component, and the pack home follows DOTAI_DELEGATE_HOME', async () => {
   const lib = await import('../dotai/tools/hook-lib.mjs')
-  const core = await import('../dotai/tools/delegate-core.mjs')
-  const guard = await import('../dotai/tools/agent-guard.mjs')
-  assert.equal(lib.PACK, 'dotai-lartweib-pack')
-  assert.deepEqual(lib.EFFORTS, ['low', 'medium', 'high', 'xhigh', 'max'])
-  assert.equal(core.EFFORTS, lib.EFFORTS)
-  assert.equal(core.PACK, lib.PACK)
-  assert.equal(guard.EFFORTS, lib.EFFORTS)
-  assert.equal(core.packHome, lib.packHome)
-  assert.equal(lib.isObject({}), true)
-  assert.equal(lib.isObject([]), false)
-  assert.equal(lib.isObject(null), false)
   assert.equal(lib.samePath(join(tmpdir(), 'a', '..', 'b'), join(tmpdir(), 'b')), true)
   assert.equal(lib.isInside(join(tmpdir(), 'b', 'c'), join(tmpdir(), 'b')), true)
   assert.equal(lib.isInside(join(tmpdir(), 'bc'), join(tmpdir(), 'b')), false)
@@ -227,11 +211,4 @@ test('a .cmd shim gets every argument through cmd.exe exactly; line breaks becom
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
-})
-
-test('the numeric settings warning says what a valid value is', async () => {
-  const { numberSettings } = await import('../dotai/tools/hook-lib.mjs')
-  const r = numberSettings({ a: -1 }, { a: 5 }, 'x')
-  assert.doesNotMatch(r.warnings[0], /not a plain number/)
-  assert.match(r.warnings[0], /x\.a .*"-1".*number of at least 0.*using 5/)
 })

@@ -9,7 +9,7 @@ supersedes: [0009, 0019]   # partially: only "thresholds and the preferred pool 
 
 ## Context
 
-Three gaps appear when the `delegate` decisions are mapped onto [PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md):
+Three gaps appear when the `delegate` decisions are mapped onto [PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md):
 
 1. [0009](0009-directional-delegation-with-quota-config.md) and [0019](0019-quota-cap-by-who-is-in-charge.md) make quota thresholds and the preferred pool "profile configuration". `delegate` is installed at user scope with the base and the variant, while profiles are project scope and cannot carry agy settings at all.
 2. [0028](0028-standalone-and-orca-variants.md) keeps the cost policy (model/effort validation, pool choice) in the base, but the runner that applies it lives in `standalone`, and `orca` has no runner.
@@ -47,11 +47,11 @@ The layout above is conditional on the engine questions listed under Consequence
 
 ## Evidence
 
-- Maintainer request, 2026-10-28; [PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md); [dotai 0025](../../../dotai/docs/decisions/0025-settings-as-per-harness-passthrough.md).
+- Maintainer request, 2026-10-28; [PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md); [dotai 0025](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0025-settings-as-per-harness-passthrough.md).
 
 ## Update 2026-11-01: engine answers
 
-The engine answered the pending questions ([dotai 0030](../../../dotai/docs/decisions/0030-tools-paths-and-project-config.md), [dotai 0037](../../../dotai/docs/decisions/0037-tool-commands-resolved-per-os.md)).
+The engine answered the pending questions ([dotai 0030](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0030-tools-paths-and-project-config.md), [dotai 0037](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0037-tool-commands-resolved-per-os.md)).
 
 - **Paths are resolved at install time, not at runtime.** `${DOTAI_TOOLS}` and `${DOTAI_PROJECT_TOOLS}` become absolute paths in every text file of the layers, skills and hooks included. In `settings.yaml`, `${DOTAI_TOOL:<name>}` becomes the full command for the OS.
 - **`runners/` no longer exists.** The variant backend is a tool in `variants/<name>/dotai/tools/`. Base and variant are both user scope, and the same path in two layers of one scope is an error. So the base tool and the backend need different names: `delegate` (base: validation, pool selection, launch log) and `delegate-backend` (one per variant). Both variants may use the same name, because only one variant is applied.

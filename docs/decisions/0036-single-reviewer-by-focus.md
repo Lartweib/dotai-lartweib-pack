@@ -11,11 +11,11 @@ tags: [review, subagents, cost, workflows]
 Resolves OPEN-QUESTIONS question 5 (replace the `review-*` lenses with one reviewer?). The router ([0023](0023-workflows-by-task-type-v2.md), [0035](0035-task-router-refinements.md)) calls for a fresh-context review in medium and high-risk work without defining the reviewer. The author finds the four lenses excessive and rejects triggering review by changed-line count.
 
 Usage analysis, 2026-09-06 to 2026-10-30 (internal research, not published):
-- 246 lens runs, all fired automatically by a global rule, none on request.
-- 18 severe findings in total; one project had 136 runs and no severe finding.
+- Every lens run was fired automatically by a global rule, none on request.
+- Few severe findings in total; one project had many runs and no severe finding.
 - The highest-value finding came from the risk lens on a security path.
 - Readability mostly flagged stale docs and rarely blocked anything.
-- In web work an Opus judge scoring against the owner's criteria was more useful (8 of 8 corrections applied); Godot work used ad-hoc judge → fix rounds.
+- In web work an Opus judge scoring against the owner's criteria was more useful (all of its corrections were applied); Godot work used ad-hoc judge → fix rounds.
 - "Acted on" figures are estimated from later edits to the same file.
 
 ## Decision

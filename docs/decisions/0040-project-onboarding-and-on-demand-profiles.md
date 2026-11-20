@@ -8,7 +8,7 @@ tags: [onboarding, profiles, skills, base]
 
 ## Context
 
-The engine cleans and backs up user-scope config (install modes, [dotai 0018](../../../dotai/docs/decisions/0018-install-modes-and-mandatory-backup.md)) but not project files. Projects often carry old config, such as gentle-ai rules in `CLAUDE.md` or same-name skills, that clashes with the pack. The engine keeps a record of the applied profiles in the project's `.dotai/` directory ([PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md)).
+The engine cleans and backs up user-scope config (install modes, [dotai 0018](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0018-install-modes-and-mandatory-backup.md)) but not project files. Projects often carry old config, such as gentle-ai rules in `CLAUDE.md` or same-name skills, that clashes with the pack. The engine keeps a record of the applied profiles in the project's `.dotai/` directory ([PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md)).
 
 Some capabilities are not tied to a project type: making animated videos (Hyperframes or similar) can come up in any project. The author expects the orchestrator to know such a profile exists and suggest it. This record extends [0010](0010-onboarding-profile-classification.md).
 
@@ -42,7 +42,7 @@ Some capabilities are not tied to a project type: making animated videos (Hyperf
 ## Evidence
 
 - Review with the author, 2026-11-01.
-- Skill usage, 2026-09 to 2026-10: `video-frames` 18 uses in one web project and one Godot game project.
+- Skill usage, 2026-09 to 2026-10: `video-frames` used occasionally in one web project and one Godot game project.
 - Live reload: [skills](https://code.claude.com/docs/en/skills), [sub-agents](https://code.claude.com/docs/en/sub-agents).
 
 ## Update 2026-11-01: engine answers
@@ -71,9 +71,9 @@ Engine answers:
 
 - **Project MCPs in Claude Code** go to the local scope: `projects[<path>].mcpServers` in `~/.claude.json`. The engine edits those keys directly, so they appear in the install plan and the backup. It owns only the names the pack declares and records in `.dotai/`, and refuses when a name belongs to someone else. `.mcp.json` is not used: it is a tracked file and asks for approval.
 - **Worktrees:** each worktree is another path, with its own entry and its own `.dotai/`, so profiles are applied once per worktree. `dotai doctor` will report orphaned entries. The `obra` lane tool must apply the project's profiles to each new lane, or say that it did not.
-- **Extending a tool's config** ([dotai 0030](../../../dotai/docs/decisions/0030-tools-paths-and-project-config.md)): a profile ships its own file, such as `read-size.web.txt`, in `.dotai/tools/`, and the tool merges `~/.dotai/tools/` and `.dotai/tools/`. The base's size-based Read hook and model allowlist must read both when they are built.
+- **Extending a tool's config** ([dotai 0030](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0030-tools-paths-and-project-config.md)): a profile ships its own file, such as `read-size.web.txt`, in `.dotai/tools/`, and the tool merges `~/.dotai/tools/` and `.dotai/tools/`. The base's size-based Read hook and model allowlist must read both when they are built.
 - **Writes to `~/.claude.json`:** Claude Code does not merge edits: it rereads the file before writing, but not atomically (the engine's experiment lost 1 edit in 37 in one run of three), so refusing while it runs would not help, and dotai 0041 exempts these writes from that refusal. The engine retries on `EPERM`, rereads and verifies the keys; a key lost anyway shows in `dotai doctor` as `key-missing`, fixed by a new apply. Interactive sessions, which write on exit, are untested (engine answer, 2026-11-03).
-- **Lanes inside a running session (resolved):** `obra` lanes are created from inside a running Claude Code session. A project apply is not refused there: [dotai 0041](../../../dotai/docs/decisions/0041-project-scope-local-and-untracked.md) allows `~/.claude.json` writes while Claude Code runs (the running-harness refusal covers only a replace install and a restore into a harness's own configuration). A key lost to a concurrent write shows in `dotai doctor` as `key-missing`.
+- **Lanes inside a running session (resolved):** `obra` lanes are created from inside a running Claude Code session. A project apply is not refused there: [dotai 0041](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0041-project-scope-local-and-untracked.md) allows `~/.claude.json` writes while Claude Code runs (the running-harness refusal covers only a replace install and a restore into a harness's own configuration). A key lost to a concurrent write shows in `dotai doctor` as `key-missing`.
 
 ## Update 2026-11-03: renamed
 
@@ -81,4 +81,4 @@ The profile `obra` is now `autonomous-orchestra`, and its lane tool is `orchestr
 
 ## Update 2026-11-18: onboarding is dotai's
 
-Partially superseded by [0047](0047-adopt-dotai-owned-onboarding.md): dotai's `dotai-profiles` skill and session-start hook ([dotai 0045](../../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md)) replace the pack's onboarding hint, its done marker and the catalog line, so the planned catalog check (never built) is moot. The backup and the clash cleanup (`dotai-analyze`) and point 4 stand.
+Partially superseded by [0047](0047-adopt-dotai-owned-onboarding.md): dotai's `dotai-profiles` skill and session-start hook ([dotai 0045](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0045-dotai-owned-project-onboarding.md)) replace the pack's onboarding hint, its done marker and the catalog line, so the planned catalog check (never built) is moot. The backup and the clash cleanup (`dotai-analyze`) and point 4 stand.

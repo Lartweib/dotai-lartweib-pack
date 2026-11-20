@@ -4,7 +4,7 @@
 - **verified-at:** 2026-11-01
 - **covers:** [0008](decisions/0008-always-on-budget-values.md), [0009](decisions/0009-directional-delegation-with-quota-config.md), [0010](decisions/0010-onboarding-profile-classification.md), [0014](decisions/0014-base-principles-scripts-hooks-deny.md), [0016](decisions/0016-review-web-approval-by-criterion-type.md), [0017](decisions/0017-statusline-in-base.md), [0030](decisions/0030-explicit-model-and-effort-enforcement.md), [0019](decisions/0019-quota-cap-by-who-is-in-charge.md), [0020](decisions/0020-drop-sdd-lightweight-task-router.md), [0021](decisions/0021-orca-extend-dont-fork.md), [0022](decisions/0022-delegate-visible-orca-backend.md), [0023](decisions/0023-workflows-by-task-type-v2.md), [0024](decisions/0024-sessions-by-topic-clean-context.md), [0027](decisions/0027-review-rounds-preset-in-the-tracker.md), [0028](decisions/0028-standalone-and-orca-variants.md), [0029](decisions/0029-reference-pack-v1-scope.md), [0034](decisions/0034-delegate-packaging-base-tool-variant-runners.md), [0031](decisions/0031-orca-single-delegation-terminal-agy-p.md), [0032](decisions/0032-variant-parity-by-use-case.md), [0033](decisions/0033-coexist-with-orca-installed-skills.md), [0035](decisions/0035-task-router-refinements.md), [0036](decisions/0036-single-reviewer-by-focus.md), [0037](decisions/0037-base-subagent-roster.md), [0038](decisions/0038-base-bash-guards-ask-and-deny.md), [0039](decisions/0039-artifact-reads-guarded-by-size.md), [0040](decisions/0040-project-onboarding-and-on-demand-profiles.md), [0041](decisions/0041-engram-via-cli-and-hooks.md), [0042](decisions/0042-memory-save-policy.md)
 
-This document is a map of how the reference pack behaves at runtime. The engine that installs it is described in [the engine's ARCHITECTURE.md](../../dotai/docs/ARCHITECTURE.md), and the format this pack follows in [PACK-FORMAT.md](../../dotai/docs/PACK-FORMAT.md). The why lives in the [decision records](decisions/README.md) and the detail in [DESIGN.md](DESIGN.md). Anything not yet decided is marked as pending and points to [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md). Anything not stated by a source document is marked `(inferred)`.
+This document is a map of how the reference pack behaves at runtime. The engine that installs it is described in [the engine's ARCHITECTURE.md](https://github.com/Lartweib/dotai/blob/main/docs/ARCHITECTURE.md), and the format this pack follows in [PACK-FORMAT.md](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md). The why lives in the [decision records](decisions/README.md) and the detail in [DESIGN.md](DESIGN.md). Anything not yet decided is marked as pending and points to [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md). Anything not stated by a source document is marked `(inferred)`.
 
 ## 1. Overview
 
@@ -73,8 +73,8 @@ What each source level contains ([DESIGN §3 and §4](DESIGN.md#3-global-base)):
 | Level | Content | Always-on cost |
 |---|---|---|
 | **Base** | Core `AGENTS.md`, cost policy, task router ([0020](decisions/0020-drop-sdd-lightweight-task-router.md)), sessions-by-topic rule ([0024](decisions/0024-sessions-by-topic-clean-context.md)), `delegate` skill, hooks (`PreToolUse` on `Agent`, `timeout`, Bash guards that ask for destructive commands and filter denied paths, a size-based `Read` hook for artifacts), `permissions.deny` for secrets, `memory` skill and Engram hooks, statusline | Rules ≤ 2,500, listing ≤ ~2,000, total warn 4,000 in Claude Code and agy ([0046](decisions/0046-split-always-on-budget.md)) |
-| **Profiles** (flat and combinable, [dotai 0023](../../dotai/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md)) | The v1 set of [0044](decisions/0044-v1-profile-set.md) (manifest `dotai.yaml`): `autonomous-orchestra`, `cloudflare`, `desktop`, `godot`, `seo`, `tooling`, `ui`, `video`, `web` | `web` ~1.1k, `godot` 1–3k, `tooling` ≤0.7k, `desktop` ≤0.5k |
-| **Modules** | `delegate`, guards, panel, clash cleanup (`dotai-analyze`); per [dotai 0004](../../dotai/docs/decisions/0004-installer-language-and-shape.md), opt-in | On demand |
+| **Profiles** (flat and combinable, [dotai 0023](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0023-flat-profiles-and-layer-merge-rules.md)) | The v1 set of [0044](decisions/0044-v1-profile-set.md) (manifest `dotai.yaml`): `autonomous-orchestra`, `cloudflare`, `desktop`, `godot`, `seo`, `tooling`, `ui`, `video`, `web` | `web` ~1.1k, `godot` 1–3k, `tooling` ≤0.7k, `desktop` ≤0.5k |
+| **Modules** | `delegate`, guards, panel, clash cleanup (`dotai-analyze`); per [dotai 0004](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0004-installer-language-and-shape.md), opt-in | On demand |
 
 Resolved:
 
@@ -134,7 +134,7 @@ sequenceDiagram
 
 ### 3.b Subagent launch under the strict hook
 
-Decided in [0030](decisions/0030-explicit-model-and-effort-enforcement.md): in Claude Code effort cannot be set per launch, so the hook requires `model` and effort comes from the subagent definition ([dotai 0024](../../dotai/docs/decisions/0024-models-declared-per-harness-no-tiers.md), [HARNESS-NOTES](../../dotai/docs/HARNESS-NOTES.md)). The hook guarantees the model is present; the log measures the quality of the choice.
+Decided in [0030](decisions/0030-explicit-model-and-effort-enforcement.md): in Claude Code effort cannot be set per launch, so the hook requires `model` and effort comes from the subagent definition ([dotai 0024](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0024-models-declared-per-harness-no-tiers.md), [HARNESS-NOTES](https://github.com/Lartweib/dotai/blob/main/docs/HARNESS-NOTES.md)). The hook guarantees the model is present; the log measures the quality of the choice.
 
 ```mermaid
 sequenceDiagram
@@ -159,7 +159,7 @@ Safety net for paths the hook does not cover: `CLAUDE_CODE_SUBAGENT_MODEL=sonnet
 
 ### 3.c Project onboarding
 
-Decided in [0010](decisions/0010-onboarding-profile-classification.md) and [0040](decisions/0040-project-onboarding-and-on-demand-profiles.md) (the pack backs up affected files before cleaning clashes) and [0047](decisions/0047-adopt-dotai-owned-onboarding.md) (dotai's own session-start hook and `dotai-profiles` skill choose the profiles, [dotai 0045](../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md); a task that needs a missing profile loads `dotai-profiles`); shape in [DESIGN §4.5](DESIGN.md#onboarding). Mods are always installed at project level (invariant, see §5).
+Decided in [0010](decisions/0010-onboarding-profile-classification.md) and [0040](decisions/0040-project-onboarding-and-on-demand-profiles.md) (the pack backs up affected files before cleaning clashes) and [0047](decisions/0047-adopt-dotai-owned-onboarding.md) (dotai's own session-start hook and `dotai-profiles` skill choose the profiles, [dotai 0045](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0045-dotai-owned-project-onboarding.md); a task that needs a missing profile loads `dotai-profiles`); shape in [DESIGN §4.5](DESIGN.md#onboarding). Mods are always installed at project level (invariant, see §5).
 
 ```mermaid
 sequenceDiagram
@@ -258,7 +258,7 @@ The hard threshold is configuration of the base `delegate` tool at user scope ([
 - agy as hub never delegates to Claude, neither directly, nor via its third-party pool, nor via OpenCode with API. Exhaustion is resolved by deferring and notifying ([0009](decisions/0009-directional-delegation-with-quota-config.md)).
 - No silent inheritance ([0030](decisions/0030-explicit-model-and-effort-enforcement.md)): every Claude Code delegation declares `model` (the hook rejects it otherwise) and effort is fixed in each pack subagent's definition (agents without a declared effort, generic built-ins included, are rejected); every `delegate` job declares model and effort, validated as a pair ([0022](decisions/0022-delegate-visible-orca-backend.md)).
 - Quota thresholds and the preferred pool are configuration of the base `delegate` tool at user scope, not chat and not profile content ([0034](decisions/0034-delegate-packaging-base-tool-variant-runners.md)). Soft cap in interactive mode, hard cap in autonomous mode ([0019](decisions/0019-quota-cap-by-who-is-in-charge.md)).
-- Mods are installed per project, never at user level ([dotai 0011](../../dotai/docs/decisions/0011-mods-always-project-scoped.md)). The panel, after v1 ([0029](decisions/0029-reference-pack-v1-scope.md)), has per-project extension sections ([DESIGN §7](DESIGN.md#7-delegate-and-quota-routing)).
+- Mods are installed per project, never at user level ([dotai 0011](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0011-mods-always-project-scoped.md)). The panel, after v1 ([0029](decisions/0029-reference-pack-v1-scope.md)), has per-project extension sections ([DESIGN §7](DESIGN.md#7-delegate-and-quota-routing)).
 - Always-on budget, real tokens, both harnesses: rules ≤ 2,500, listing ≤ ~2,000 (≤ ~100 per entry), total warn 4,000 and fail 5,000, measured by `dotai doctor` (engine question). ([0046](decisions/0046-split-always-on-budget.md))
 - Scripts and CLI before MCP; policy in config and hooks, not in prompt text. ([0014](decisions/0014-base-principles-scripts-hooks-deny.md))
 - Review cards live in an external tracker consumed through the pack; it runs locally and works with agy as hub and without internet ([0027](decisions/0027-review-rounds-preset-in-the-tracker.md)).
@@ -267,7 +267,7 @@ The hard threshold is configuration of the base `delegate` tool at user scope ([
 
 ## 6. Boundaries and external integrations
 
-The pack does not control these surfaces: it uses them and can break if they change. Verified harness facts are in the engine's [HARNESS-NOTES.md](../../dotai/docs/HARNESS-NOTES.md).
+The pack does not control these surfaces: it uses them and can break if they change. Verified harness facts are in the engine's [HARNESS-NOTES.md](https://github.com/Lartweib/dotai/blob/main/docs/HARNESS-NOTES.md).
 
 | System | What the pack uses | Source and notes |
 |---|---|---|

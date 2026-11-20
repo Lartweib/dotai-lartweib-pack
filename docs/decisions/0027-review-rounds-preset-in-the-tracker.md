@@ -8,7 +8,7 @@ origin: dotai 0037 (pack half)
 
 # 0027 · Review cards are a `review-rounds` preset of the external tracker
 
-The engine half (dotai ships no review server; review tools are external and declared by the pack) is [dotai 0016](../../../dotai/docs/decisions/0016-review-via-external-tracker.md).
+The engine half (dotai ships no review server; review tools are external and declared by the pack) is [dotai 0016](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0016-review-via-external-tracker.md).
 
 ## Context
 

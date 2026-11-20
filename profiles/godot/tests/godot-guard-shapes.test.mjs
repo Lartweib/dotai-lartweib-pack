@@ -142,11 +142,6 @@ test('the suggested wrap fits the shell that runs the command', async () => {
   }
 })
 
-test('the editor message stays harness-neutral', async () => {
-  const d = await decide('godot -e', { probe: probeOf(roomy), config: cfg })
-  assert.doesNotMatch(d.reason, /Claude|OpenCode|agy/i)
-})
-
 test('a probe that cannot read memory means unknown, and unknown allows', async () => {
   for (const freeMb of [0, -5, NaN, Infinity, undefined]) {
     const d = await decide('timeout 300 godot --headless', { probe: probeOf({ freeMb, cpuPct: 10, procs: [] }), config: cfg })

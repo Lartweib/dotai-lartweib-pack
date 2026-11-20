@@ -47,6 +47,21 @@ async function agy() {
     return
   }
   if (mode === 'sleep') await sleep(Number(env.FAKE_AGY_SLEEP_MS) || 8000)
+  // Stay busy until the backend has probed `orca terminal list` N times, however slow the machine
+  // is, so a test of the liveness probe does not depend on timing. Capped so a backend that never
+  // probes still finishes, and the test then reports the count it saw.
+  if (mode === 'until-probes') {
+    const want = Number(env.FAKE_AGY_PROBES) || 3
+    const probes = () => {
+      try {
+        return readFileSync(env.FAKE_LOG, 'utf8').split('\n').filter(l => l.includes('"name":"orca"') && /"argv":\["terminal","list"/.test(l)).length
+      } catch {
+        return 0
+      }
+    }
+    const until = Date.now() + (Number(env.FAKE_AGY_PROBE_CAP_MS) || 30000)
+    while (probes() < want && Date.now() < until) await sleep(50)
+  }
   if (dir) {
     mkdirSync(dir, { recursive: true })
     const body = mode === 'env' ? `caller=${env.DOTAI_DELEGATE_CALLER} parent=${env.DOTAI_DELEGATE_PARENT}` : 'fake result: Definición'

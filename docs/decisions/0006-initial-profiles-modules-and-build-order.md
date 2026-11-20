@@ -8,11 +8,11 @@ origin: dotai 0009 (pack half)
 
 # 0006 · Initial profiles, modules and build order
 
-> **Superseded by [0007](0007-five-layers-and-profiles.md).** Kept as history. The engine half of the original record (Go binary, `apply`/`doctor`) is [dotai 0004](../../../dotai/docs/decisions/0004-installer-language-and-shape.md).
+> **Superseded by [0007](0007-five-layers-and-profiles.md).** Kept as history. The engine half of the original record (Go binary, `apply`/`doctor`) is [dotai 0004](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0004-installer-language-and-shape.md).
 
 ## Context
 
-The installer's shape was decided in [dotai 0004](../../../dotai/docs/decisions/0004-installer-language-and-shape.md). It needed a first list of profiles and modules, and an order to build them.
+The installer's shape was decided in [dotai 0004](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0004-installer-language-and-shape.md). It needed a first list of profiles and modules, and an order to build them.
 
 ## Decision
 

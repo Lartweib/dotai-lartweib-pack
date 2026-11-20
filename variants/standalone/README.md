@@ -72,7 +72,7 @@ A threshold that is not a positive number, or an unknown `agyMode`, keeps its de
 
 ## TODO(trial)
 
-- Quota error text: no real sample yet (`RESOURCE_EXHAUSTED`, "out of quota until" from the binary). agy may fall back to paid AI credits after quota instead of failing (measurement 1); the account is assumed subscription-only (0022).
+- Quota error text: no real sample yet (`RESOURCE_EXHAUSTED`, "out of quota until" from the binary). agy may fall back to paid AI credits after quota instead of failing (measurement 1); the pack assumes a subscription-only account (0022).
 
 ## Verified (trial 2026-11-19, OpenCode 2.0.30, Windows)
 

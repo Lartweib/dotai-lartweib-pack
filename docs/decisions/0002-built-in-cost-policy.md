@@ -27,7 +27,7 @@ The cost policy ships as configuration and hooks, not as instructions in the pro
 
 ## Consequences
 
-- Cost savings come from this policy and from the loop caps (see [dotai 0001](../../../dotai/docs/decisions/0001-own-configuration-engine.md)).
+- Cost savings come from this policy and from the loop caps (see [dotai 0001](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0001-own-configuration-engine.md)).
 - The quota cap was refined later in [0019](0019-quota-cap-by-who-is-in-charge.md).
 
 ## Evidence

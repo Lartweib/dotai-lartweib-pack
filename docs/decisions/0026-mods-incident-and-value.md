@@ -7,7 +7,7 @@ origin: dotai 0032 (pack half)
 
 # 0026 · Mods in the reference pack: incident and open value
 
-The engine half (mods are never installed at user scope) is [dotai 0011](../../../dotai/docs/decisions/0011-mods-always-project-scoped.md).
+The engine half (mods are never installed at user scope) is [dotai 0011](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0011-mods-always-project-scoped.md).
 
 ## Context
 
@@ -15,11 +15,11 @@ Incident on 2026-10-23: a bug-tracker panel mod was installed with user scope an
 
 ## Decision
 
-The reference pack's global base carries no mods (it does carry, among other things, the statusline, cost policy and `delegate`). Panels are installed per project, following [dotai 0011](../../../dotai/docs/decisions/0011-mods-always-project-scoped.md).
+The reference pack's global base carries no mods (it does carry, among other things, the statusline, cost policy and `delegate`). Panels are installed per project, following [dotai 0011](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0011-mods-always-project-scoped.md).
 
 ## Considered options
 
-See [dotai 0011](../../../dotai/docs/decisions/0011-mods-always-project-scoped.md).
+See [dotai 0011](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0011-mods-always-project-scoped.md).
 
 ## Consequences
 

@@ -109,8 +109,11 @@ test('decisions print in each harness format', () => {
   const cc = JSON.parse(formatPreToolUse('claudecode', 'ask', 'why'))
   assert.equal(cc.hookSpecificOutput.permissionDecision, 'ask')
   assert.equal(formatPreToolUse('claudecode', null, ''), '')
-  const oc = JSON.parse(formatPreToolUse('opencode', 'ask', 'why'))
-  assert.equal(oc.hookSpecificOutput.permissionDecision, 'deny')
+  // OpenCode cannot ask: an ask becomes a deny that keeps the guard's reason first.
+  const oc = JSON.parse(formatPreToolUse('opencode', 'ask', 'godot guard: this opens the editor.')).hookSpecificOutput
+  assert.equal(oc.permissionDecision, 'deny')
+  assert.match(oc.permissionDecisionReason, /^godot guard: this opens the editor\./)
+  assert.equal(JSON.parse(formatPreToolUse('opencode', 'deny', 'no')).hookSpecificOutput.permissionDecisionReason, 'no')
   assert.deepEqual(JSON.parse(formatPreToolUse('antigravity', 'deny', 'x')), { decision: 'deny', reason: 'x' })
   // agy runs the command on ask under an allow rule or skip-permissions, which the hook cannot
   // see, so the guard denies instead.
@@ -120,16 +123,6 @@ test('decisions print in each harness format', () => {
   // No decision prints nothing in every harness, agy included.
   assert.equal(formatPreToolUse('antigravity', null, ''), '')
   assert.equal(formatPreToolUse('opencode', null, ''), '')
-})
-
-test('an ask rewritten to deny in OpenCode says what the user can do', () => {
-  const r = JSON.parse(formatPreToolUse('opencode', 'ask', 'godot guard: this opens the editor.')).hookSpecificOutput
-  assert.match(r.permissionDecisionReason, /^godot guard: this opens the editor\./)
-  assert.match(r.permissionDecisionReason, /OpenCode cannot ask/)
-  assert.match(r.permissionDecisionReason, /run it themselves/)
-  assert.match(r.permissionDecisionReason, /permission config/)
-  const deny = JSON.parse(formatPreToolUse('opencode', 'deny', 'no')).hookSpecificOutput
-  assert.equal(deny.permissionDecisionReason, 'no')
 })
 
 test('config sections read the flat two-level subset', () => {
@@ -149,6 +142,9 @@ test('numeric settings fall back to their defaults, with one warning each', () =
   assert.equal(r.warnings.length, 1)
   assert.match(r.warnings[0], /godot\.reserveMb.*4096MB.*1536/)
   assert.deepEqual(numberSettings({}, { a: 1 }, 's'), { values: { a: 1 }, warnings: [] })
+  const negative = numberSettings({ a: -1 }, { a: 5 }, 'x')
+  assert.equal(negative.values.a, 5, 'a negative value is not valid either')
+  assert.match(negative.warnings[0], /x\.a .*-1.*5/)
 })
 
 test('the config walk stops at the project root', () => {
@@ -272,7 +268,7 @@ test('runCapped kills the whole process tree on timeout', async () => {
   assert.equal(alive, false, `grandchild ${pid} survived`)
 })
 
-test('profile hooks follow the agy quoting rule and state the per-harness block convention', () => {
+test('profile hooks follow the agy quoting rule', () => {
   for (const p of readdirSync(PROFILES)) {
     let text
     try {
@@ -289,8 +285,6 @@ test('profile hooks follow the agy quoting rule and state the per-harness block 
         for (const h of list) assert.doesNotMatch(h.command, /["']/, `${p}: ${h.command}`)
       }
     }
-    const perHarness = ['claudecode', 'opencode', 'antigravity-cli'].some(h => hooks[h])
-    if (perHarness) assert.match(text, /per-harness block replaces the shared hooks of the same event/, p)
   }
 })
 

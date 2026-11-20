@@ -81,7 +81,9 @@ refuses to overwrite an existing `.vtt` without `--force`. Ask before running it
 videos: it is slow on CPU. On a GPU run (`--device cuda`, or no `--device` with
 `nvidia-smi` on PATH) the two CTranslate2 CLIs get `--compute_type float16`, because
 their auto type fails on RTX 50xx cards. On a CUDA or cuBLAS error, rerun with
-`--compute-type float32`, then `--device cpu`.
+`--compute-type float32`, then `--device cpu`. The run is capped by `--timeout` (seconds,
+default 7200); on expiry the CLI and its child processes are killed and the command fails.
+`WHISPER_BIN` points at a CLI that is not on PATH.
 
 Gemini video understanding is a manual alternative, not built in: it reads audio and
 frames together, but **the video leaves the machine**. Offer it only for content the

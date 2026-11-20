@@ -9,7 +9,7 @@ supersedes: [0009]   # partially: only the fixed direction "Claude Code delegate
 
 ## Context
 
-[0009](0009-directional-delegation-with-quota-config.md) fixes the direction: Claude Code delegates to agy, and agy never delegates to Claude. The pack should serve a user whose main account is agy the same way it serves the author with Claude Code as main, and it should install on either harness or both. Before this record it could not: `dotai.yaml` had `requires: [claudecode, antigravity-cli]`, and `delegate-core.mjs` hardcoded the direction (`checkRoute`: "delegate never targets Claude Code"). The engine's [PACK-FORMAT](../../../dotai/docs/PACK-FORMAT.md) (origin/main) allows `requires` to list "possibly none".
+[0009](0009-directional-delegation-with-quota-config.md) fixes the direction: Claude Code delegates to agy, and agy never delegates to Claude. The pack should serve a user whose main account is agy the same way it serves the author with Claude Code as main, and it should install on either harness or both. Before this record it could not: `dotai.yaml` had `requires: [claudecode, antigravity-cli]`, and `delegate-core.mjs` hardcoded the direction (`checkRoute`: "delegate never targets Claude Code"). The engine's [PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md) (origin/main) allows `requires` to list "possibly none".
 
 ## Decision
 

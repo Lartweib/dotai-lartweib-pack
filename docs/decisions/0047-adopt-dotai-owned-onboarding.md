@@ -11,7 +11,7 @@ supersedes: []
 
 [0040](0040-project-onboarding-and-on-demand-profiles.md) made project onboarding the pack's job: `session-start.mjs` suggested `dotai-analyze` while a project had neither `.dotai/state.json` nor the pack's done marker `.dotai/packs/dotai-lartweib-pack/onboarded.json`; `dotai-analyze` detected the stack, proposed and applied profiles, cleaned clashes and wrote the marker; a catalog line in the core rules listed the profiles for on-demand suggestions.
 
-The engine now owns onboarding ([dotai 0045](../../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md)). `dotai install` generates the `dotai-profiles` skill from each profile's `description` and `hints` and a `SessionStart` hook, `dotai onboarding hook --harness <id>`, that prints one line while the repository is neither set up nor dismissed, or when its fingerprint changed. Keeping both onboardings would ask twice and drift.
+The engine now owns onboarding ([dotai 0045](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0045-dotai-owned-project-onboarding.md)). `dotai install` generates the `dotai-profiles` skill from each profile's `description` and `hints` and a `SessionStart` hook, `dotai onboarding hook --harness <id>`, that prints one line while the repository is neither set up nor dismissed, or when its fingerprint changed. Keeping both onboardings would ask twice and drift.
 
 ## Decision
 
@@ -37,5 +37,5 @@ The pack uses dotai's onboarding (author, 2026-11-18) and keeps only what the en
 
 ## Evidence
 
-- [dotai 0045](../../../dotai/docs/decisions/0045-dotai-owned-project-onboarding.md), [PACK-FORMAT, Onboarding](../../../dotai/docs/PACK-FORMAT.md#onboarding), `internal/pack/onboarding.go` (engine `origin/main` bd65f3a).
+- [dotai 0045](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0045-dotai-owned-project-onboarding.md), [PACK-FORMAT, Onboarding](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md#onboarding), `internal/pack/onboarding.go` (engine `origin/main` bd65f3a).
 - `dotai validate` and `dotai stage` on this pack, 2026-11-18.
