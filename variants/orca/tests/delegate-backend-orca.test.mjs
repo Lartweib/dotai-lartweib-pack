@@ -48,10 +48,12 @@ test('the typed line runs research in plan mode and a code job with --dangerousl
     assert.equal(runTool(TOOL, base(s), sb, CC).code, 0)
     assert.equal(runTool(TOOL, [...base(s), '--kind', 'code'], sb, CC).code, 0)
     const [research, code] = sb.calls().filter(c => c.name === 'orca' && c.argv[1] === 'create').map(c => c.argv[c.argv.indexOf('--command') + 1])
-    assert.match(research, /"--mode" "plan"/)
+    // cmd.exe takes double-quoted arguments; a POSIX shell takes single-quoted ones.
+    const q = process.platform === 'win32' ? '"' : "'"
+    assert.ok(research.includes(`${q}--mode${q} ${q}plan${q}`), research)
     assert.doesNotMatch(research, /--dangerously-skip-permissions/)
     assert.match(code, /--dangerously-skip-permissions/)
-    assert.doesNotMatch(code, /"--mode"/)
+    assert.ok(!code.includes(`${q}--mode${q}`), code)
   } finally {
     sb.cleanup()
   }

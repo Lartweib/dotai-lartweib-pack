@@ -1002,13 +1002,17 @@ export function parsePorcelain(z, toplevel, root) {
   return out
 }
 
+// The root is reached with `--show-cdup` (a relative "../" path), not `--show-toplevel`: git
+// prints the toplevel in its own canonical form, so a root given through another spelling of the
+// same directory (a Windows 8.3 short name such as RUNNER~1, a symbolic link, a subst drive) would
+// share no prefix with it and every change would be dropped.
 export function changedFiles(root) {
   const git = args => spawnSync('git', args, { cwd: root, encoding: 'utf8', timeout: 10000, windowsHide: true })
-  const top = git(['rev-parse', '--show-toplevel'])
-  if (top.status !== 0) return []
+  const cdup = git(['rev-parse', '--show-cdup'])
+  if (cdup.status !== 0) return []
   const st = git(['status', '--porcelain', '-z', '-uall'])
   if (st.status !== 0) return []
-  return parsePorcelain(st.stdout, top.stdout.trim(), root)
+  return parsePorcelain(st.stdout, resolve(root, cdup.stdout.trim()), root)
 }
 
 export function fingerprintFiles(root, files) {

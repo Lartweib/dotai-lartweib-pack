@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-import { checkTree, manifestVariants, manifestVersion, parseLsTree, privacyHits, tagProblems } from '../check.mjs'
+import { checkTree, manifestVariants, manifestVersion, parseLsTree, privacyHits, tagProblems, tapFailures } from '../check.mjs'
 
 const MiB = 1024 * 1024
 const row = (mode, type, size, path) => `${mode} ${type} 0123456789abcdef0123456789abcdef01234567 ${String(size).padStart(7)}\t${path}`
@@ -109,4 +109,38 @@ test('dotai.yaml: every harness is compatible and none is required (dotai 0047, 
   const list = k => (field(k) ?? '').replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean)
   assert.deepEqual(list('harnesses').sort(), ['antigravity-cli', 'claudecode', 'opencode'])
   assert.match(y, /^requires:\s*\[\]/m)
+})
+
+// CI prints only check.mjs's lines, so a failure must carry its own error and location.
+test('tapFailures keeps each failing test with its error and first stack frame', () => {
+  const tap = [
+    'TAP version 13',
+    'ok 1 - passes',
+    'not ok 2 - deep equal',
+    '  ---',
+    '  duration_ms: 3.1',
+    "  failureType: 'testCodeFailure'",
+    '  error: |-',
+    '    Expected values to be strictly deep-equal:',
+    '    + []',
+    "  code: 'ERR_ASSERTION'",
+    '  stack: |-',
+    '    TestContext.<anonymous> (file:///x/a.test.mjs:4:12)',
+    '    Test.run (node:internal/test_runner/test:1047:25)',
+    '  ...',
+    'not ok 3 - bad json',
+    '  ---',
+    "  error: 'Unexpected end of JSON input'",
+    '  stack: |-',
+    '    JSON.parse (<anonymous>)',
+    '  ...',
+    'not ok 4 - no block',
+    '1..4',
+  ].join('\n')
+  assert.deepEqual(tapFailures(tap), [
+    { line: 'not ok 2 - deep equal', details: ['Expected values to be strictly deep-equal:', '+ []', 'at TestContext.<anonymous> (file:///x/a.test.mjs:4:12)'] },
+    { line: 'not ok 3 - bad json', details: ["'Unexpected end of JSON input'", 'at JSON.parse (<anonymous>)'] },
+    { line: 'not ok 4 - no block', details: [] },
+  ])
+  assert.equal(tapFailures(tap.replace('    + []', Array.from({ length: 40 }, (_, i) => `    line ${i}`).join('\n')))[0].details.length, 15)
 })

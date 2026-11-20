@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, mkdirSync, utimesSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, utimesSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -407,6 +407,28 @@ test('a real monorepo reports only the package changes (skipped without git)', t
   }
 })
 
+
+// Regression (CI 2026-11-20): the Windows runner's temp dir is an 8.3 short name (RUNNER~1),
+// and git prints --show-toplevel in its long form, so every change was dropped. A link to the
+// repository is another spelling of the same directory that git resolves the same way.
+test('a package reached through another spelling of the repository still reports its changes (skipped without git)', t => {
+  if (spawnSync('git', ['--version']).error) return t.skip('git not installed')
+  const parent = mkdtempSync(join(tmpdir(), 'hooklib-alias-'))
+  try {
+    const top = join(parent, 'real')
+    const app = join(top, 'packages', 'app')
+    mkdirSync(app, { recursive: true })
+    spawnSync('git', ['init', '-q'], { cwd: top })
+    writeFileSync(join(app, 'a.ts'), 'export {}\n')
+    writeFileSync(join(top, 'README.md'), '#\n')
+    const alias = join(parent, 'alias')
+    symlinkSync(top, alias, 'junction')
+    assert.deepEqual(changedFiles(join(alias, 'packages', 'app')), ['a.ts'])
+    assert.deepEqual(changedFiles(alias).sort(), ['README.md', 'packages/app/a.ts'])
+  } finally {
+    rmSync(parent, { recursive: true, force: true })
+  }
+})
 
 test("a fingerprint changes with a file's mtime and marks a deleted file", () => {
   const root = mkdtempSync(join(tmpdir(), 'hooklib-fp-'))

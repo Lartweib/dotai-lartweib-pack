@@ -112,6 +112,32 @@ export function tagProblems(tags, version) {
 
 // ------------------------------------------------------------------ runner
 
+// node --test TAP output: each `not ok` line with its `error:` and the first `stack:` frame from
+// the YAML block under it, at most maxLines lines per failure.
+export function tapFailures(out, maxLines = 15) {
+  const lines = String(out).split(/\r?\n/)
+  const failures = []
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^( *)not ok \d+ - /.exec(lines[i])
+    if (!m) continue
+    const ind = `${m[1]}  `
+    const details = []
+    if (lines[i + 1] === `${ind}---`) {
+      for (let j = i + 2; j < lines.length && lines[j] !== `${ind}...`; j++) {
+        if (!lines[j].startsWith(ind) || lines[j][ind.length] === ' ') continue
+        const f = /^(error|stack): ?(.*)$/.exec(lines[j].slice(ind.length))
+        if (!f) continue
+        const deeper = `${ind}  `
+        const block = f[2] && !f[2].startsWith('|') ? [f[2]] : []
+        for (let k = j + 1; k < lines.length && lines[k].startsWith(deeper); k++) block.push(lines[k].slice(deeper.length))
+        details.push(...(f[1] === 'stack' ? block.slice(0, 1).map(s => `at ${s}`) : block))
+      }
+    }
+    failures.push({ line: lines[i].trim(), details: details.filter(l => l.trim()).slice(0, maxLines) })
+  }
+  return failures
+}
+
 const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { encoding: 'utf8', maxBuffer: 256 * MiB, windowsHide: true, ...opts })
 
 function git(root, args) {
@@ -127,8 +153,8 @@ function checkTests(root) {
   if (r.error) return { status: 'fail', text: `tests: ${r.error.message}` }
   const summary = `${count('tests')} tests, ${count('pass')} pass, ${count('fail')} fail`
   if (r.status === 0) return { status: 'ok', text: `tests: ${summary}` }
-  const failed = (r.stdout ?? '').split(/\r?\n/).filter(l => /^\s*not ok /.test(l)).slice(0, 20)
-  return { status: 'fail', text: `tests: ${summary}`, details: failed }
+  const failed = tapFailures(r.stdout ?? '').slice(0, 20)
+  return { status: 'fail', text: `tests: ${summary}`, details: failed.flatMap(f => [f.line, ...f.details.map(d => `  ${d}`)]) }
 }
 
 function dotaiBinary(env = process.env) {
