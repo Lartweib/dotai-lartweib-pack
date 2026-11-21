@@ -1,16 +1,14 @@
-// Statusline for Claude Code and agy (pack 0017, layout update 2026-11-21): three aligned lines,
-//   Claude   5h —                        │ 7d ██░░░░░░  22% ↻ 3d 4h  │ Opus · ctx 34%
-//   Gemini   5h █░░░░░░░   8% ↻ 4h 2m    │ 7d ░░░░░░░░   5% ↻ 6d 1h  │ 3.8 Flash (Medium)
-//   Others   5h ░░░░░░░░   0% ↻ 5h 0m    │ 7d ░░░░░░░░   0% ↻ 6d 1h  │ Claude/GPT in agy
-// Others is agy's third-party pool. `—` (green): the harness does not report that window for
-// this plan (Claude Code sends no five_hour on some plans). `···` (gray): no data yet. Bars and
-// percentages are green, yellow from 50%, red from 80%; NO_COLOR keeps the marks without color.
-// The primary harness's rows come first: CC above by default, agy's two above with `primary: agy`
-// in the delegate.yaml (0050).
+// Statusline for Claude Code and agy (pack 0017, update 2026-11-21): one line for the harness
+// that runs it, with its own quota only,
+//   Claude │ 5h ███░░░░░  41% ↻ 2h 13m │ 7d ██░░░░░░  22% ↻ 3d 4h   │ Opus · ctx 34%
+//   Gemini │ 5h █░░░░░░░   8% ↻ 4h 2m  │ 7d ░░░░░░░░   5% ↻ 6d 1h   │ 3.8 Flash (Medium)
+// A window the harness does not report (Claude Code sends no five_hour on some plans) or has no
+// data for is left out. Bars and percentages are green, yellow from 50%, red from 80%; NO_COLOR
+// drops the color only.
 // Each harness gives quota only to its own statusline command, on stdin: Claude Code
 // `rate_limits.five_hour|seven_day` (used_percentage, resets_at), agy `quota` with the pools
 // `gemini-5h`, `gemini-weekly`, `3p-5h`, `3p-weekly` (used_percentage or remaining_fraction,
-// reset_in_seconds or reset_time). So each run writes its harness's snapshot and reads the other's:
+// reset_in_seconds or reset_time). So each run writes its harness's snapshot, which the delegate reads for both pools:
 //   ~/.claude/rate_limits.json                    (fields kept from the old statusline; under
 //                                                 CLAUDE_CONFIG_DIR when set)
 //   ~/.gemini/antigravity-cli/rate_limits.json    (read by delegate, RUNTIME; now also with each
@@ -20,18 +18,18 @@
 // A payload without its quota block (`rate_limits` before Claude Code's first answer, `quota` in
 // agy) writes nothing, so the last good snapshot survives; the line shows it with the payload's
 // model and context. A snapshot is replaced atomically or not at all.
-// A fourth line, `delegate: N running · last OK 2m ago`, comes from the launch log that the
+// A second line, `delegate: N running · last OK 2m ago`, comes from the launch log that the
 // delegate backend and the agent guard write (<pack home>/launches.jsonl, delegate-core.mjs);
 // without that log, or with an empty one, the line is omitted, and the delegate code is loaded only
 // when the log exists.
-// No subprocesses, two or three small files: it runs on every refresh.
+// No subprocesses, one or two small files: it runs on every refresh.
 // Entry point: `node statusline.mjs <claudecode|antigravity>`, stdin from the harness.
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { harnessArg, isObject, packHome, readSection, readStdin } from './hook-lib.mjs'
+import { harnessArg, isObject, packHome, readStdin } from './hook-lib.mjs'
 
 export const STALE_SEC = 15 * 60 // TODO(trial): tune against agy's refresh rate
 const LABEL_WIDTH = 9
@@ -141,59 +139,28 @@ const colorOn = () => !process.env.NO_COLOR
 const sgr = (code, text) => (colorOn() && text ? `\x1b[${code}m${text}\x1b[0m` : text)
 const level = pct => (pct >= 80 ? 31 : pct >= 50 ? 33 : 32) // red, yellow, green
 const BAR = 8
+const RESET_WIDTH = 7 // `23h 59m`, the longest reset, so the line does not shift as it counts down
 
-// One window: `bar pct ↻ reset` with data; `—` (green) when the harness does not report the window
-// for this plan while its other window has data; `···` (gray) when there is no data. Stale data
-// keeps its values, dimmed; the row's last column then shows its age.
-function windowCell(w, sibling, snap, stale, now) {
-  if (snap && w.pct === null && sibling.pct !== null) return { kind: 'na' }
-  if (!snap || w.pct === null) return { kind: 'none' }
-  const filled = Math.round((w.pct / 100) * BAR)
-  return { kind: 'data', pct: w.pct, filled, cd: w.reset === null ? '' : formatDuration(w.reset - now), stale }
-}
-
-// The primary harness's rows come first (0050): Claude Code by default, agy's two with `primary: agy`.
-export function render({ cc, agy, now, primary = 'claudecode' }) {
-  const stale = s => !!s && now - s.ts > STALE_SEC
-  const age = s => `${formatDuration(now - s.ts)} ago`
-  const pair = (snap, five, week) => ({
-    five: windowCell(five, week, snap, stale(snap), now),
-    week: windowCell(week, five, snap, stale(snap), now),
-  })
-  const none = { pct: null, reset: null }
-  const rows = [
-    {
-      label: 'Claude',
-      ...pair(cc, cc?.five ?? none, cc?.week ?? none),
-      extra: !cc ? 'waiting for Claude' : stale(cc) ? age(cc) : [cc.model || null, cc.ctx === null ? null : `ctx ${cc.ctx}%`].filter(Boolean).join(' · '),
-    },
-    {
-      label: 'Gemini',
-      ...pair(agy, agy?.gemini.five ?? none, agy?.gemini.week ?? none),
-      extra: !agy ? 'waiting for agy' : stale(agy) ? age(agy) : agy.model || '',
-    },
-    {
-      label: 'Others',
-      ...pair(agy, agy?.p3.five ?? none, agy?.p3.week ?? none),
-      extra: agy ? 'Claude/GPT in agy' : '',
-    },
+// One line for the harness running it: its label, each window it reports (a window it does not
+// report, or with no data, is left out), then the model and context. A stale snapshot keeps its
+// values, dimmed, and shows its age.
+export function render({ label, snap, now }) {
+  const stale = !!snap && now - snap.ts > STALE_SEC
+  const paint = (pct, text) => (stale ? sgr(2, text) : sgr(level(pct), text))
+  const windows = [
+    ['5h', snap?.five],
+    ['7d', snap?.week],
   ]
-  if (primary === 'agy') rows.push(rows.shift())
-  const cells = rows.flatMap(r => [r.five, r.week]).filter(c => c.kind === 'data')
-  const cdw = Math.max(0, ...cells.map(c => c.cd.length))
-  const width = BAR + 1 + 4 + 3 + cdw // bar, pct (up to 100%), ` ↻ `, reset
-  const show = c => {
-    if (c.kind === 'na') return sgr(32, '—') + ' '.repeat(width - 1)
-    if (c.kind === 'none') return sgr(90, '···') + ' '.repeat(width - 3)
-    const paint = text => (c.stale ? sgr(2, text) : sgr(level(c.pct), text))
-    const bar = paint('█'.repeat(c.filled)) + sgr(c.stale ? 2 : 90, '░'.repeat(BAR - c.filled))
-    const reset = c.cd ? `↻ ${c.cd}` : ''
-    return `${bar} ${paint(`${c.pct}%`.padStart(4))} ${c.stale ? sgr(2, reset.padEnd(cdw + 2)) : reset.padEnd(cdw + 2)}`
-  }
-  const sep = sgr(90, '│')
-  return rows
-    .map(r => `${sgr(1, r.label.padEnd(LABEL_WIDTH))}5h ${show(r.five)} ${sep} 7d ${show(r.week)} ${sep} ${sgr(90, r.extra)}`.trimEnd())
-    .join('\n')
+    .filter(([, w]) => w && w.pct !== null)
+    .map(([name, w]) => {
+      const filled = Math.round((w.pct / 100) * BAR)
+      const bar = paint(w.pct, '█'.repeat(filled)) + sgr(stale ? 2 : 90, '░'.repeat(BAR - filled))
+      const reset = w.reset === null ? '' : `↻ ${formatDuration(w.reset - now).padEnd(RESET_WIDTH)}`
+      return `${name} ${bar} ${paint(w.pct, `${w.pct}%`.padStart(4))} ${stale ? sgr(2, reset) : reset}`.trimEnd()
+    })
+  const info = stale ? [`${formatDuration(now - snap.ts)} ago`] : [snap?.model || null, snap?.ctx == null ? null : `ctx ${snap.ctx}%`].filter(Boolean)
+  const sep = ` ${sgr(90, '│')} `
+  return [sgr(1, label), ...windows, sgr(90, info.join(' · '))].filter(Boolean).join(sep)
 }
 
 const readJson = f => {
@@ -221,16 +188,6 @@ function writeJson(f, data) {
 
 // The last good snapshot with the live model and context, for a payload that carries no quota.
 const withLive = (prev, cur) => (prev ? { ...prev, model: cur.model || prev.model, ctx: cur.ctx ?? prev.ctx } : cur)
-
-// `primary` from <pack home>/delegate.yaml (0050), read without loading the delegate code; any
-// problem leaves Claude Code first.
-export function primaryOf(env = process.env, home = homedir()) {
-  try {
-    return readSection(readFileSync(join(packHome(env, home), 'delegate.yaml'), 'utf8'), 'delegate').primary === 'agy' ? 'agy' : 'claudecode'
-  } catch {
-    return 'claudecode'
-  }
-}
 
 // The delegate line, or null. The pack home is the one delegate-core.mjs uses.
 export async function delegateLine(env = process.env, home = homedir(), now = Date.now()) {
@@ -263,22 +220,22 @@ async function main() {
   const ccFile = join(process.env.CLAUDE_CONFIG_DIR || join(home, '.claude'), 'rate_limits.json')
   const agyFile = join(home, '.gemini', 'antigravity-cli', 'rate_limits.json')
   const harness = harnessArg() ?? (isObject(d.quota) ? 'antigravity' : 'claudecode')
-  let cc
-  let agy
+  // Each run still writes its harness's snapshot: the delegate reads both pools from them (0050).
+  let line
   if (harness === 'antigravity') {
-    agy = fromAgy(d, now)
+    let agy = fromAgy(d, now)
     if (isObject(d.quota)) writeJson(agyFile, agySnapshot(agy))
     else agy = withLive(agyFromSnapshot(readJson(agyFile)), agy)
-    cc = claudeFromSnapshot(readJson(ccFile))
+    line = render({ label: 'Gemini', snap: { ts: agy.ts, model: agy.model, ctx: agy.ctx, five: agy.gemini.five, week: agy.gemini.week }, now })
   } else {
-    cc = fromClaude(d, now)
+    let cc = fromClaude(d, now)
     // An empty object (`rate_limits: {}`) carries no quota either: the snapshot is kept.
     if (isObject(d.rate_limits) && Object.keys(d.rate_limits).length) writeJson(ccFile, claudeSnapshot(cc))
     else cc = withLive(claudeFromSnapshot(readJson(ccFile)), cc)
-    agy = agyFromSnapshot(readJson(agyFile))
+    line = render({ label: 'Claude', snap: cc, now })
   }
   const extra = await delegateLine(process.env, home)
-  process.stdout.write(`${render({ cc, agy, now, primary: primaryOf(process.env, home) })}\n${extra ? `${extra}\n` : ''}`)
+  process.stdout.write(`${line}\n${extra ? `${extra}\n` : ''}`)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
