@@ -407,9 +407,9 @@ const FOREIGN = JSON.parse(readFileSync(join(HERE, 'fixtures', 'orca-1.4.247', '
 
 function recordedSandbox() {
   const sb = sandbox(['agy'])
-  if (process.platform === 'win32') writeFileSync(join(sb.bin, 'orca.cmd'), `@node "${RECORDED}" %*\r\n`)
+  if (process.platform === 'win32') writeFileSync(join(sb.bin, 'orca.cmd'), `@"${process.execPath}" "${RECORDED}" %*\r\n`)
   else {
-    writeFileSync(join(sb.bin, 'orca'), `#!/bin/sh\nexec node '${RECORDED}' "$@"\n`)
+    writeFileSync(join(sb.bin, 'orca'), `#!/bin/sh\nexec '${process.execPath}' '${RECORDED}' "$@"\n`)
     chmodSync(join(sb.bin, 'orca'), 0o755)
   }
   return sb
