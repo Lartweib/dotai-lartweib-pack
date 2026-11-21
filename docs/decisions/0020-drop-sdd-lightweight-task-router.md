@@ -37,3 +37,9 @@ It resolves open question P-C1 (does SDD remain as an on-demand package or is it
 
 - Internal research (not published): SDD usage pattern.
 - Internal research (not published): workflow alternatives (§1 and §4.5).
+
+## Update 2026-11-22: delegate first
+
+In the first hours of the real install, the launch log held 17 Claude Code subagent launches (12 `worker`, 4 `reviewer`, 1 `explorer`) and no delegation to agy besides the author's smoke tests. The router line named `delegate` for research, audits and bulk mechanical work, but the subagent roster offered the same jobs at a lower launch cost, so the session took the subagents. The line now makes `delegate` the first route for those jobs; `researcher`, `explorer` and `worker` take them only when `delegate` returns DEFER or the job needs the session's context. Measure again from the launch log.
+
+The same trial found that agy in plan mode reaches for a shell command to read a file, which plan mode denies, and then replies with nothing; the read-only prompt of `delegate-core.mjs` now names the file tools.
