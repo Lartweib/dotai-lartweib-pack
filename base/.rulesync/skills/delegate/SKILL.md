@@ -8,7 +8,7 @@ metadata:
 # delegate
 
 1. Pick the job: research, audit or bulk mechanical change. Not small changes, bugs or exploration.
-2. Write a self-contained spec file: target, change, constraints, what proves it done.
+2. Write a self-contained spec file: target, change, constraints, what proves it done, and that every background process it starts ends before it finishes.
 3. Run:
 
    ```
