@@ -645,10 +645,12 @@ const READ_ONLY = new Set(['research', 'audit'])
 // writes the long result to a file, which keeps accented characters (agy's -p output loses them,
 // 0022). Research and audit run read-only (agy plan mode, the OpenCode plan agent), so the agent
 // cannot write result.md: its reply is the result, saved there by this tool. agy 1.5.3 plan mode
-// read the job folder and kept the accents of its JSON reply (trial 2026-11-19).
+// read the job folder and kept the accents of its JSON reply (trial 2026-11-19). Plan mode denies
+// shell commands; agy 1.5.13 reached for one to read a file and replied with nothing (trial
+// 2026-11-22), so the read-only prompt names the file tools.
 export function buildPrompt(jobDir, kind = 'research') {
   if (READ_ONLY.has(kind) || !KINDS.includes(kind)) {
-    return `Read spec.md in the job folder and do the task it describes. This is a read-only run: edit no file and reply with the complete result, which is saved to result.md. job folder: ${jobDir}`
+    return `Read spec.md in the job folder and do the task it describes. This is a read-only run: edit no file and reply with the complete result, which is saved to result.md. Read files with your file-reading tools, no shell commands: they are denied here. job folder: ${jobDir}`
   }
   return `Read spec.md and do the task it describes. Write the complete result to result.md (UTF-8). Both files are in the job folder. Edit only what the task names. Reply with one short line. job folder: ${jobDir}`
 }

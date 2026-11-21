@@ -33,7 +33,7 @@ First decide: does the request authorize a change? Then pick a type. Move to the
 | Autonomous backlog | `autonomous` skill | Check + separate verifier | Round and turn caps, quota cap |
 | Audit, migration, research | Bounded workflow, pilot one slice | Adversarial verification | No human gates inside |
 
-Delegate research, audits and bulk mechanical work to the other harness via the `delegate` skill. Keep small changes, bugs and exploration here.
+Research, audits and bulk mechanical work go to the other harness first, via the `delegate` skill. Give them to `researcher`, `explorer` or `worker` only when `delegate` returns DEFER or the job needs this session's context. Keep small changes, bugs and exploration here.
 
 ## Tests
 

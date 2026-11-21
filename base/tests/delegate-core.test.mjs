@@ -455,6 +455,9 @@ test('read-only kinds run agy in plan mode and OpenCode without --auto; code kee
     // edit permission is allow (trial 2026-11-19); its built-in plan agent denies edit.
     assert.equal(ocArgs[ocArgs.indexOf('--agent') + 1], 'plan', kind)
     assert.match(buildPrompt(jobDir, kind), /read-only.*reply with the complete result/i)
+    // Plan mode denies every shell command; agy 1.5.13 reached for one to read a file and replied
+    // with nothing (trial 2026-11-22), so the prompt names the file tools.
+    assert.match(buildPrompt(jobDir, kind), /file-reading tools.*no shell/i)
   }
   assert.ok(!buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, 'code').includes('--agent'))
   assert.equal(mode(buildArgs('agy', d, 'p', cfg, jobDir, cwd, 'code')), 'accept-edits', 'agyMode is honored')
