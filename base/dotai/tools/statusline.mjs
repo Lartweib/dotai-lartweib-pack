@@ -1,7 +1,10 @@
-// Statusline for Claude Code and agy (pack 0017, layout update 2026-10-31): three aligned lines,
-//   CC      5h 41% ↻ 2h 13m   │ wk 22% ↻ 3d 4h 10m   │ Opus · ctx 34%
-//   agy     5h  8% ↻ 4h 2m    │ wk  5% ↻ 6d 1h 0m    │ 3.8 Flash (Medium)
-//   agy 3p  5h  0% ↻ 5h 0m    │ wk  0% ↻ 6d 1h 0m    │ updated 2h 0m ago
+// Statusline for Claude Code and agy (pack 0017, layout update 2026-11-21): three aligned lines,
+//   Claude   5h —                        │ 7d ██░░░░░░  22% ↻ 3d 4h  │ Opus · ctx 34%
+//   Gemini   5h █░░░░░░░   8% ↻ 4h 2m    │ 7d ░░░░░░░░   5% ↻ 6d 1h  │ 3.8 Flash (Medium)
+//   Others   5h ░░░░░░░░   0% ↻ 5h 0m    │ 7d ░░░░░░░░   0% ↻ 6d 1h  │ Claude/GPT in agy
+// Others is agy's third-party pool. `—` (green): the harness does not report that window for
+// this plan (Claude Code sends no five_hour on some plans). `···` (gray): no data yet. Bars and
+// percentages are green, yellow from 50%, red from 80%; NO_COLOR keeps the marks without color.
 // The primary harness's rows come first: CC above by default, agy's two above with `primary: agy`
 // in the delegate.yaml (0050).
 // Each harness gives quota only to its own statusline command, on stdin: Claude Code
@@ -12,7 +15,8 @@
 //                                                 CLAUDE_CONFIG_DIR when set)
 //   ~/.gemini/antigravity-cli/rate_limits.json    (read by delegate, RUNTIME; now also with each
 //                                                  pool's reset as an absolute time, 0017)
-// A snapshot older than STALE_SEC shows `?` and its age (unknown counts as available, 0022).
+// A snapshot older than STALE_SEC keeps its values, dimmed, and shows its age (unknown counts as
+// available, 0022).
 // A payload without its quota block (`rate_limits` before Claude Code's first answer, `quota` in
 // agy) writes nothing, so the last good snapshot survives; the line shows it with the payload's
 // model and context. A snapshot is replaced atomically or not at all.
@@ -30,7 +34,7 @@ import { pathToFileURL } from 'node:url'
 import { harnessArg, isObject, packHome, readSection, readStdin } from './hook-lib.mjs'
 
 export const STALE_SEC = 15 * 60 // TODO(trial): tune against agy's refresh rate
-const LABEL_WIDTH = 8
+const LABEL_WIDTH = 9
 
 const num = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v))
 const pctOf = v => (num(v) === null ? null : Math.max(0, Math.min(100, Math.round(Number(v)))))
@@ -47,7 +51,7 @@ export function formatDuration(sec) {
   const d = Math.floor(s / 86400)
   const h = Math.floor((s % 86400) / 3600)
   const m = Math.floor((s % 3600) / 60)
-  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (d > 0) return `${d}d ${h}h`
   if (h > 0) return `${h}h ${m}m`
   return `${m}m`
 }
@@ -134,47 +138,61 @@ const agyFromSnapshot = j =>
     : null
 
 const colorOn = () => !process.env.NO_COLOR
-function paint(pct, text) {
-  if (!colorOn() || pct === null) return text
-  const code = pct >= 80 ? 31 : pct >= 50 ? 33 : 32
-  return `\x1b[${code}m${text}\x1b[0m`
+const sgr = (code, text) => (colorOn() && text ? `\x1b[${code}m${text}\x1b[0m` : text)
+const level = pct => (pct >= 80 ? 31 : pct >= 50 ? 33 : 32) // red, yellow, green
+const BAR = 8
+
+// One window: `bar pct ↻ reset` with data; `—` (green) when the harness does not report the window
+// for this plan while its other window has data; `···` (gray) when there is no data. Stale data
+// keeps its values, dimmed; the row's last column then shows its age.
+function windowCell(w, sibling, snap, stale, now) {
+  if (snap && w.pct === null && sibling.pct !== null) return { kind: 'na' }
+  if (!snap || w.pct === null) return { kind: 'none' }
+  const filled = Math.round((w.pct / 100) * BAR)
+  return { kind: 'data', pct: w.pct, filled, cd: w.reset === null ? '' : formatDuration(w.reset - now), stale }
 }
 
 // The primary harness's rows come first (0050): Claude Code by default, agy's two with `primary: agy`.
 export function render({ cc, agy, now, primary = 'claudecode' }) {
-  const fresh = s => !!s && now - s.ts <= STALE_SEC
-  const cell = (w, ok) => ({ pct: ok ? w.pct : null, cd: ok && w.pct !== null ? formatDuration(w.reset === null ? null : w.reset - now) : '?' })
-  const ccOk = fresh(cc)
-  const agyOk = fresh(agy)
-  const age = s => (now - s.ts < 60 ? 'updated now' : `updated ${formatDuration(now - s.ts)} ago`)
+  const stale = s => !!s && now - s.ts > STALE_SEC
+  const age = s => `${formatDuration(now - s.ts)} ago`
+  const pair = (snap, five, week) => ({
+    five: windowCell(five, week, snap, stale(snap), now),
+    week: windowCell(week, five, snap, stale(snap), now),
+  })
+  const none = { pct: null, reset: null }
   const rows = [
     {
-      label: 'CC',
-      five: cc ? cell(cc.five, ccOk) : cell({}, false),
-      week: cc ? cell(cc.week, ccOk) : cell({}, false),
-      extra: !cc ? 'no data' : ccOk ? [cc.model || '?', cc.ctx === null ? null : `ctx ${cc.ctx}%`].filter(Boolean).join(' · ') : age(cc),
+      label: 'Claude',
+      ...pair(cc, cc?.five ?? none, cc?.week ?? none),
+      extra: !cc ? 'waiting for Claude' : stale(cc) ? age(cc) : [cc.model || null, cc.ctx === null ? null : `ctx ${cc.ctx}%`].filter(Boolean).join(' · '),
     },
     {
-      label: 'agy',
-      five: agy ? cell(agy.gemini.five, agyOk) : cell({}, false),
-      week: agy ? cell(agy.gemini.week, agyOk) : cell({}, false),
-      extra: agy?.model || '',
+      label: 'Gemini',
+      ...pair(agy, agy?.gemini.five ?? none, agy?.gemini.week ?? none),
+      extra: !agy ? 'waiting for agy' : stale(agy) ? age(agy) : agy.model || '',
     },
     {
-      label: 'agy 3p',
-      five: agy ? cell(agy.p3.five, agyOk) : cell({}, false),
-      week: agy ? cell(agy.p3.week, agyOk) : cell({}, false),
-      extra: agy ? age(agy) : 'no data',
+      label: 'Others',
+      ...pair(agy, agy?.p3.five ?? none, agy?.p3.week ?? none),
+      extra: agy ? 'Claude/GPT in agy' : '',
     },
   ]
   if (primary === 'agy') rows.push(rows.shift())
-  const pctText = c => (c.pct === null ? '?' : String(c.pct))
-  const pw = Math.max(2, ...rows.flatMap(r => [pctText(r.five).length, pctText(r.week).length]))
-  const w5 = Math.max(...rows.map(r => r.five.cd.length))
-  const w7 = Math.max(...rows.map(r => r.week.cd.length))
-  const col = (c, w) => `${paint(c.pct, `${pctText(c).padStart(pw)}%`)} ↻ ${c.cd.padEnd(w)}`
+  const cells = rows.flatMap(r => [r.five, r.week]).filter(c => c.kind === 'data')
+  const cdw = Math.max(0, ...cells.map(c => c.cd.length))
+  const width = BAR + 1 + 4 + 3 + cdw // bar, pct (up to 100%), ` ↻ `, reset
+  const show = c => {
+    if (c.kind === 'na') return sgr(32, '—') + ' '.repeat(width - 1)
+    if (c.kind === 'none') return sgr(90, '···') + ' '.repeat(width - 3)
+    const paint = text => (c.stale ? sgr(2, text) : sgr(level(c.pct), text))
+    const bar = paint('█'.repeat(c.filled)) + sgr(c.stale ? 2 : 90, '░'.repeat(BAR - c.filled))
+    const reset = c.cd ? `↻ ${c.cd}` : ''
+    return `${bar} ${paint(`${c.pct}%`.padStart(4))} ${c.stale ? sgr(2, reset.padEnd(cdw + 2)) : reset.padEnd(cdw + 2)}`
+  }
+  const sep = sgr(90, '│')
   return rows
-    .map(r => `${r.label.padEnd(LABEL_WIDTH)}5h ${col(r.five, w5)} │ wk ${col(r.week, w7)} │ ${r.extra}`.trimEnd())
+    .map(r => `${sgr(1, r.label.padEnd(LABEL_WIDTH))}5h ${show(r.five)} ${sep} 7d ${show(r.week)} ${sep} ${sgr(90, r.extra)}`.trimEnd())
     .join('\n')
 }
 

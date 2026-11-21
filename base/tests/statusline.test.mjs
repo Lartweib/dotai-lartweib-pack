@@ -1,7 +1,8 @@
 // Run: node --test base/tests/
-// Statusline (pack 0017, update 2026-10-31): three aligned lines, Claude Code, agy and agy's
-// third-party pool, with resets as `Xd Xh Xm`. Each harness writes its own quota snapshot and
-// reads the other's.
+// Statusline (pack 0017, update 2026-11-21): three aligned lines, Claude, Gemini (agy) and Others
+// (agy's third-party pool); each window a bar, a percentage and a reset of at most two units.
+// A window the harness does not report shows `—`; missing data shows `···`. Each harness writes
+// its own quota snapshot and reads the other's.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
@@ -21,9 +22,9 @@ const D = 86400
 
 test('durations omit zero leading units and keep the rest', () => {
   assert.equal(formatDuration(2 * H + 13 * 60), '2h 13m')
-  assert.equal(formatDuration(3 * D + 4 * H + 10 * 60 + 59), '3d 4h 10m')
+  assert.equal(formatDuration(3 * D + 4 * H + 10 * 60 + 59), '3d 4h')
   assert.equal(formatDuration(5 * H), '5h 0m')
-  assert.equal(formatDuration(6 * D + H), '6d 1h 0m')
+  assert.equal(formatDuration(6 * D + H), '6d 1h')
   assert.equal(formatDuration(42 * 60), '42m')
   assert.equal(formatDuration(30), '0m')
   assert.equal(formatDuration(0), 'now')
@@ -53,24 +54,33 @@ const agyInput = {
 test('the three lines are aligned and carry the live values', () => {
   const lines = render({ cc: fromClaude(ccInput, NOW), agy: fromAgy(agyInput, NOW), now: NOW }).split('\n').map(plain)
   assert.equal(lines.length, 3)
-  assert.match(lines[0], /^CC\s+5h 41% ↻ 2h 13m\s+│ wk 22% ↻ 3d 4h 10m\s+│ Opus · ctx 34%$/)
-  assert.match(lines[1], /^agy\s+5h\s+8% ↻ 4h 2m\s+│ wk\s+5% ↻ 6d 1h 0m\s+│ 3\.8 Flash \(Medium\)$/)
-  assert.match(lines[2], /^agy 3p\s+5h\s+0% ↻ 5h 0m\s+│ wk\s+0% ↻ 6d 1h 0m\s+│ updated now$/)
+  assert.match(lines[0], /^Claude\s+5h ███░░░░░\s+41% ↻ 2h 13m\s+│ 7d ██░░░░░░\s+22% ↻ 3d 4h\s+│ Opus · ctx 34%$/)
+  assert.match(lines[1], /^Gemini\s+5h █░░░░░░░\s+8% ↻ 4h 2m\s+│ 7d ░░░░░░░░\s+5% ↻ 6d 1h\s+│ 3\.8 Flash \(Medium\)$/)
+  assert.match(lines[2], /^Others\s+5h ░░░░░░░░\s+0% ↻ 5h 0m\s+│ 7d ░░░░░░░░\s+0% ↻ 6d 1h\s+│ Claude\/GPT in agy$/)
   const bars = lines.map(l => [...l.matchAll(/│/g)].map(m => m.index))
   assert.deepEqual(bars[1], bars[0])
   assert.deepEqual(bars[2], bars[0])
 })
 
-test('a stale or missing snapshot shows ? and its age', () => {
+test('a window the plan does not have shows a green dash, apart from missing data', () => {
+  const sevenOnly = { ...ccInput, rate_limits: { seven_day: ccInput.rate_limits.seven_day } }
+  const raw = render({ cc: fromClaude(sevenOnly, NOW), agy: null, now: NOW })
+  const lines = raw.split('\n').map(plain)
+  assert.match(lines[0], /^Claude\s+5h —\s+│ 7d ██░░░░░░\s+22%/)
+  assert.match(raw.split('\n')[0], /\x1b\[32m—/, 'the dash is green')
+  assert.match(lines[1], /^Gemini\s+5h ···\s+│ 7d ···\s+│ waiting for agy$/)
+  assert.doesNotMatch(lines.join('\n'), /\?/)
+  const bars = lines.map(l => [...l.matchAll(/│/g)].map(m => m.index))
+  assert.deepEqual(bars[1], bars[0])
+  assert.deepEqual(bars[2], bars[0])
+})
+
+test('a stale snapshot keeps its values and shows its age; no snapshot shows ···', () => {
   const agy = { ...fromAgy(agyInput, NOW - 2 * H), ts: NOW - 2 * H }
   const lines = render({ cc: fromClaude(ccInput, NOW), agy, now: NOW }).split('\n').map(plain)
-  assert.match(lines[1], /5h\s+\?% ↻ \?/)
-  assert.match(lines[2], /updated 2h 0m ago/)
-  const none = render({ cc: fromClaude(ccInput, NOW), agy: null, now: NOW }).split('\n').map(plain)
-  assert.match(none[1], /5h\s+\?% ↻ \?/)
-  assert.match(none[2], /no data/)
+  assert.match(lines[1], /5h █░░░░░░░\s+8%.*│ 2h 0m ago$/)
   const noCc = render({ cc: null, agy: fromAgy(agyInput, NOW), now: NOW }).split('\n').map(plain)
-  assert.match(noCc[0], /^CC\s+5h\s+\?% ↻ \?/)
+  assert.match(noCc[0], /^Claude\s+5h ···\s+│ 7d ···\s+│ waiting for Claude$/)
 })
 
 function home() {
@@ -89,15 +99,15 @@ const run = (args, input, h, extra = {}) =>
 // Pack 0050: the primary harness comes first; `primary: agy` in delegate.yaml puts agy's two rows on top.
 test('the primary comes first: agy rows on top when delegate.yaml names agy', () => {
   const lines = render({ cc: fromClaude(ccInput, NOW), agy: fromAgy(agyInput, NOW), now: NOW, primary: 'agy' }).split('\n').map(plain)
-  assert.deepEqual(lines.map(l => l.split(/\s{2,}/)[0]), ['agy', 'agy 3p', 'CC'])
+  assert.deepEqual(lines.map(l => l.split(/\s+/)[0]), ['Gemini', 'Others', 'Claude'])
   const h = mkdtempSync(join(tmpdir(), 'status primary '))
   try {
     const pack = join(h, 'pack home')
     mkdirSync(pack, { recursive: true })
     const r = () => run(['antigravity'], agyInput, h, { DOTAI_DELEGATE_HOME: pack }).stdout.split('\n')[0]
-    assert.match(r(), /^CC/, 'default primary: Claude Code')
+    assert.match(r(), /^Claude/, 'default primary: Claude Code')
     writeFileSync(join(pack, 'delegate.yaml'), 'delegate:\n  primary: agy\n')
-    assert.match(r(), /^agy\s/)
+    assert.match(r(), /^Gemini\s/)
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
@@ -115,7 +125,7 @@ test('the Claude Code snapshot lives in CLAUDE_CONFIG_DIR when set, for both har
     assert.equal(JSON.parse(readFileSync(join(config, 'rate_limits.json'), 'utf8')).five_hour_pct, 63)
     assert.deepEqual(readdirSync(join(h, '.claude')), [], 'the default snapshot is left alone')
     const agy = run(['antigravity'], agyInput, h, { CLAUDE_CONFIG_DIR: config })
-    assert.match(agy.stdout, /^CC\s+5h 63%/, 'agy reads the snapshot from the same directory')
+    assert.match(agy.stdout, /^Claude\s+5h \S+\s+63%/, 'agy reads the snapshot from the same directory')
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
@@ -132,7 +142,7 @@ test('Claude Code writes its snapshot and reads agy, agy writes its own with abs
     assert.equal(ccSnap.five_hour_pct, 41)
     assert.equal(ccSnap.seven_day_resets, now + D)
     assert.ok(Math.abs(ccSnap.ts - now) < 30)
-    assert.match(cc.stdout, /no data/)
+    assert.match(cc.stdout, /waiting for agy/)
 
     const agy = run(['antigravity'], agyInput, h)
     assert.equal(agy.status, 0, agy.stderr)
@@ -141,10 +151,10 @@ test('Claude Code writes its snapshot and reads agy, agy writes its own with abs
     assert.equal(snap.p3_7d_pct, 0)
     assert.ok(Math.abs(snap.gemini_5h_resets - (now + 4 * H + 120)) < 30)
     assert.equal(snap.model, '3.8 Flash (Medium)')
-    assert.match(agy.stdout, /^CC\s+5h 41%/, 'agy shows Claude from its snapshot')
+    assert.match(agy.stdout, /^Claude\s+5h \S+\s+41%/, 'agy shows Claude from its snapshot')
 
     const cc2 = run(['claudecode'], ccInput, h)
-    assert.match(cc2.stdout.split('\n')[1], /5h\s+8%/, 'Claude Code shows agy from its snapshot')
+    assert.match(cc2.stdout.split('\n')[1], /5h \S+\s+8%/, 'Claude Code shows agy from its snapshot')
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
@@ -184,7 +194,7 @@ test('the PowerShell wrapper passes stdin and arguments through', { skip: proces
     })
     const took = Date.now() - t0
     assert.equal(r.status, 0, String(r.error ?? r.stderr))
-    assert.match(r.stdout, /^CC\s+5h 41%/)
+    assert.match(r.stdout, /^Claude\s+5h \S+\s+41%/)
     assert.ok(took < baseline + 3000, `took ${took} ms, a bare PowerShell launch ${baseline} ms`)
   } finally {
     rmSync(h, { recursive: true, force: true })
@@ -232,18 +242,18 @@ test('a payload without quota keeps the last good snapshot instead of overwritin
     const noQuota = run(['antigravity'], { model: agyInput.model, context_window: { used_percentage: 20 } }, h)
     assert.equal(noQuota.status, 0, noQuota.stderr)
     assert.equal(readFileSync(agyFile, 'utf8'), before)
-    assert.match(noQuota.stdout.split('\n')[1], /5h\s+8%/, 'the last values still show')
+    assert.match(noQuota.stdout.split('\n')[1], /5h \S+\s+8%/, 'the last values still show')
 
     assert.equal(run(['claudecode'], ccInput, h).status, 0)
     const ccFile = join(h, '.claude', 'rate_limits.json')
     const ccBefore = readFileSync(ccFile, 'utf8')
     const noLimits = run(['claudecode'], { model: { display_name: 'Opus' }, context_window: { used_percentage: 5 } }, h)
     assert.equal(readFileSync(ccFile, 'utf8'), ccBefore)
-    assert.match(noLimits.stdout.split('\n')[0], /^CC\s+5h 41%.*ctx 5%/)
+    assert.match(noLimits.stdout.split('\n')[0], /^Claude\s+5h \S+\s+41%.*ctx 5%/)
     const emptyLimits = run(['claudecode'], { model: { display_name: 'Opus' }, context_window: { used_percentage: 6 }, rate_limits: {} }, h)
     assert.equal(emptyLimits.status, 0, emptyLimits.stderr)
     assert.equal(readFileSync(ccFile, 'utf8'), ccBefore, 'an empty rate_limits object is no quota block')
-    assert.match(emptyLimits.stdout.split('\n')[0], /^CC\s+5h 41%.*ctx 6%/)
+    assert.match(emptyLimits.stdout.split('\n')[0], /^Claude\s+5h \S+\s+41%.*ctx 6%/)
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
