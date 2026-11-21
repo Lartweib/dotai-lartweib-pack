@@ -33,5 +33,5 @@ Requirements the pack places on the tracker, inherited from 0015:
 
 - Supersedes [0015](0015-review-web-in-base-local-server.md). `review-web` leaves the base; it is an optional dependency that the pack activates per profile.
 - The approval rules of [0016](0016-review-web-approval-by-criterion-type.md) still apply; they become rules of the `review-rounds` preset.
-- Until the tracker exists, the reference pack keeps using the current per-project review flow.
+- Until the tracker is finished, the reference pack does not declare it and keeps using the current per-project review flow.
 - Open question 18 (whether a `proposed` ADR blocks in review) moves to the preset.

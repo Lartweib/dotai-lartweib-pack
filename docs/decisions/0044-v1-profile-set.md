@@ -60,8 +60,8 @@ v1 ships nine profiles. A project combines the ones it needs.
 - **Answered from usage data** (OPEN-QUESTIONS 6, 10, 13, 14 in part):
   - No more roles in the base: the custom roles were never launched; the base roster of [0037](0037-base-subagent-roster.md) stays.
   - `context7` is dropped by policy: never called.
-  - Warp, the pixel-art MCP and `pixel-agents` leave: Warp is no longer enabled, the pixel-art MCP's project is gone, and the author uninstalled `pixel-agents`.
-  - The Godot MCP and `godot-claude-skills` (needs the editor) are dropped, both barely used; `impeccable` goes to `ui`; the unused design skills are dropped.
+  - Warp, the pixel-art MCP and `pixel-agents` leave: Warp is no longer enabled, the pixel-art MCP serves a single project that registers it itself, and the author uninstalled `pixel-agents`.
+  - Both Godot MCP servers (`godot` and `godot-mcp`) and `godot-claude-skills` (needs the editor) are dropped, all barely used; `impeccable` goes to `ui`; the unused design skills are dropped.
 - **Visual review stays in Claude** (OPEN-QUESTIONS 15): the `reviewer` (Sonnet, reads images) does it. agy is not calibrated as a visual judge (measurement 5 dropped): it failed 73% of earlier trials and approved a defective case. agy keeps research and mechanical work.
 - **No mods in v1** (OPEN-QUESTIONS 20): Orca's panel (`orca`) and the viewer plus the statusline (`standalone`, [0032](0032-variant-parity-by-use-case.md)) cover visibility. A project that needs a panel gets a project mod ([0026](0026-mods-incident-and-value.md)).
 - **`ui` keeps 4 third-party design skills** (`impeccable`, `design-taste-frontend`, `web-design-guidelines`, `mobile-responsive-adaptation`) **and adds `lartweib-taste`.** An analysis of the author's design prompts across their web projects showed the four cover method but not the author's expectations, and some of their bans contradict choices the author makes on purpose. The author wants expectations, not a fixed style applied to every site: `lartweib-taste` holds the bar, identity per product, motion, precision and process, and sets no font, palette or theme.
@@ -79,7 +79,7 @@ The profile build (2026-11-01) raised engine questions; the engine answered them
 - **Matchers per harness.** A `Bash` matcher fires in neither agy nor OpenCode. Hooks with a matcher go in per-harness blocks (`claudecode:`, `opencode:`, `antigravity-cli:`) and name each harness's own tool. Shell: `Bash`, `bash` and `run_command`. The pack keeps every event that has a matcher out of the shared `hooks` block: rulesync replaces a harness's shared event when that harness's block sets the same event, so a shared entry from another layer would be dropped silently.
 - **Pending in the engine:**
   - `${DOTAI_TOOL:<name>}` in hook commands comes in a later engine change. Until then, hooks run `node <path>` with the path bare, so a project path with spaces breaks them. agy runs hooks without a shell, so even then a path with spaces cannot work there.
-  - The same MCP server in two profiles comes in the same change, accepted when the definitions are identical. codegraph stays unregistered until measurement 4 decides. The `web` and `tooling` READMEs carry one identical definition.
+  - The same MCP server in two profiles comes in the same change, accepted when the definitions are identical. codegraph is not registered in any profile: measurement 4 made it an opt-in, per-project pilot ([0012](0012-memory-and-code-intelligence-keep-and-measure.md), update 2026-11-02). The `web` and `tooling` READMEs carry one identical definition.
 - **External skills, plugins and agents** can be declared only after engine v1. Pack v1 lists them in the profile READMEs with manual install steps.
 
 ## Update 2026-11-02: measurements 6, 8, 10 and 11
