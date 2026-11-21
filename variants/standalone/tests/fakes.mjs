@@ -1,6 +1,7 @@
 // Test helpers: a sandbox under a path with spaces and fake agy/claude/opencode/orca CLIs on PATH.
-// PATH holds only the fakes, node's own directory and the OS directories, so a missing fake can
-// never fall through to a real CLI (no quota is ever spent by the tests).
+// PATH holds only the fakes and the OS directories, so a missing fake can never fall through to a
+// real CLI (no quota is ever spent by the tests). node's own directory stays out: npm installs claude
+// there, so the fakes call node by its absolute path instead.
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -21,7 +22,7 @@ export function sandbox(fakes = ['agy', 'opencode']) {
   const sys = WIN ? [join(process.env.SystemRoot || 'C:\\Windows', 'System32'), process.env.SystemRoot || 'C:\\Windows'] : ['/usr/bin', '/bin']
   const fakeLog = join(root, 'fake-calls.jsonl')
   const env = {
-    PATH: [bin, dirname(process.execPath), ...sys].join(delimiter),
+    PATH: [bin, ...sys].join(delimiter),
     SystemRoot: process.env.SystemRoot ?? '',
     ComSpec: process.env.ComSpec ?? '',
     PATHEXT: process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD',
@@ -52,10 +53,10 @@ export function sandbox(fakes = ['agy', 'opencode']) {
 
 export function writeFake(bin, name) {
   if (WIN) {
-    writeFileSync(join(bin, `${name}.cmd`), `@node "${FAKE_CLI}" ${name} %*\r\n`)
+    writeFileSync(join(bin, `${name}.cmd`), `@"${process.execPath}" "${FAKE_CLI}" ${name} %*\r\n`)
   } else {
     const f = join(bin, name)
-    writeFileSync(f, `#!/bin/sh\nexec node '${FAKE_CLI}' ${name} "$@"\n`)
+    writeFileSync(f, `#!/bin/sh\nexec '${process.execPath}' '${FAKE_CLI}' ${name} "$@"\n`)
     chmodSync(f, 0o755)
   }
 }

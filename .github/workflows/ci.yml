@@ -19,7 +19,7 @@ concurrency:
 
 env:
   # The engine has no release yet: dotai is built from this engine commit. Bump it on purpose.
-  ENGINE_REF: 3b49b05e3074eee778964db4881b5f8926e15f19
+  ENGINE_REF: 4018c7a46fe290ab942cc00aae8a583ca88c5564
 
 jobs:
   check:
