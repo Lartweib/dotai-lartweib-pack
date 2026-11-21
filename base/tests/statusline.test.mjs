@@ -50,25 +50,26 @@ const agyInput = {
   },
 }
 
-test('one line: label, both windows with bar, percentage and reset, then model and context', () => {
-  const line = plain(render({ label: 'Claude', snap: fromClaude(ccInput, NOW), now: NOW }))
-  assert.match(line, /^Claude │ 5h ███░░░░░  41% ↻ 2h 13m │ 7d ██░░░░░░  22% ↻ 3d 4h\s+│ Opus · ctx 34%$/)
-  const red = render({ label: 'Claude', snap: { ...fromClaude(ccInput, NOW), week: { pct: 85, reset: null } }, now: NOW })
+test('one line: model and context, both windows with bar, percentage and reset, then the delegate', () => {
+  const line = plain(render({ snap: fromClaude(ccInput, NOW), now: NOW, delegate: 'delegate: 1 running' }))
+  assert.match(line, /^Opus · ctx 34% │ 5h ███░░░░░  41% ↻ 2h 13m\s+│ 7d ██░░░░░░  22% ↻ 3d 4h\s+│ → delegate: 1 running$/)
+  assert.equal(line.split('\n').length, 1)
+  const red = render({ snap: { ...fromClaude(ccInput, NOW), week: { pct: 85, reset: null } }, now: NOW })
   assert.match(red, /\x1b\[31m\s*85%/, 'red from 80%')
 })
 
-test('a window the plan does not report, or with no data, is left out', () => {
+test('a window the plan does not report, or with no data, is left out; so is an absent delegate', () => {
   const sevenOnly = { ...ccInput, rate_limits: { seven_day: ccInput.rate_limits.seven_day } }
-  const line = plain(render({ label: 'Claude', snap: fromClaude(sevenOnly, NOW), now: NOW }))
-  assert.match(line, /^Claude │ 7d ██░░░░░░  22% ↻ 3d 4h\s+│ Opus · ctx 34%$/)
-  const bare = plain(render({ label: 'Claude', snap: fromClaude({ model: { display_name: 'Opus' } }, NOW), now: NOW }))
-  assert.equal(bare, 'Claude │ Opus')
-  assert.doesNotMatch(line + bare, /\?|···|—/)
+  const line = plain(render({ snap: fromClaude(sevenOnly, NOW), now: NOW }))
+  assert.match(line, /^Opus · ctx 34% │ 7d ██░░░░░░  22% ↻ 3d 4h\s*$/)
+  const bare = plain(render({ snap: fromClaude({ model: { display_name: 'Opus' } }, NOW), now: NOW }))
+  assert.equal(bare, 'Opus')
+  assert.doesNotMatch(line + bare, /\?|···|—|→/)
 })
 
-test('a stale snapshot keeps its values and shows its age instead of the model', () => {
+test('a stale snapshot keeps its values, followed by its age', () => {
   const snap = { ...fromClaude(ccInput, NOW - 2 * H), ts: NOW - 2 * H }
-  assert.match(plain(render({ label: 'Claude', snap, now: NOW })), /5h ███░░░░░  41%.*│ 2h 0m ago$/)
+  assert.match(plain(render({ snap, now: NOW })), /^Opus · ctx 34% │ 5h ███░░░░░  41%.*│ 2h 0m ago$/)
 })
 
 function home() {
@@ -95,7 +96,7 @@ test('the Claude Code snapshot lives in CLAUDE_CONFIG_DIR when set', () => {
     assert.equal(cc.status, 0, cc.stderr)
     assert.equal(JSON.parse(readFileSync(join(config, 'rate_limits.json'), 'utf8')).five_hour_pct, 63)
     assert.deepEqual(readdirSync(join(h, '.claude')), [], 'the default snapshot is left alone')
-    assert.match(cc.stdout, /^Claude │ 5h \S+\s+63%/)
+    assert.match(cc.stdout, /^Opus · ctx 34% │ 5h \S+\s+63%/)
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
@@ -112,7 +113,6 @@ test('each harness writes its own snapshot and shows only its own quota; agy kee
     assert.equal(ccSnap.five_hour_pct, 41)
     assert.equal(ccSnap.seven_day_resets, now + D)
     assert.ok(Math.abs(ccSnap.ts - now) < 30)
-    assert.doesNotMatch(cc.stdout, /Gemini/)
 
     const agy = run(['antigravity'], agyInput, h)
     assert.equal(agy.status, 0, agy.stderr)
@@ -121,8 +121,8 @@ test('each harness writes its own snapshot and shows only its own quota; agy kee
     assert.equal(snap.p3_7d_pct, 0)
     assert.ok(Math.abs(snap.gemini_5h_resets - (now + 4 * H + 120)) < 30)
     assert.equal(snap.model, '3.8 Flash (Medium)')
-    assert.match(agy.stdout, /^Gemini │ 5h \S+\s+8% .*│ 3\.8 Flash \(Medium\) · ctx 12%$/m)
-    assert.doesNotMatch(agy.stdout, /Claude/)
+    assert.match(agy.stdout, /^3\.8 Flash \(Medium\) · ctx 12% │ 5h \S+\s+8% /)
+    assert.doesNotMatch(agy.stdout, /41%/, "agy does not show Claude Code's quota")
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
@@ -162,24 +162,24 @@ test('the PowerShell wrapper passes stdin and arguments through', { skip: proces
     })
     const took = Date.now() - t0
     assert.equal(r.status, 0, String(r.error ?? r.stderr))
-    assert.match(r.stdout, /^Claude │ 5h \S+\s+41%/)
+    assert.match(r.stdout, /^Opus · ctx 34% │ 5h \S+\s+41%/)
     assert.ok(took < baseline + 3000, `took ${took} ms, a bare PowerShell launch ${baseline} ms`)
   } finally {
     rmSync(h, { recursive: true, force: true })
   }
 })
 
-// The delegate line (standalone README, TODO closed 2026-11-03): read from the launch log the
-// backend writes, with no subprocess; no log, no line.
-test('a fourth line shows delegate state from the launch log, and is omitted without one', () => {
+// The delegate part (standalone README, TODO closed 2026-11-03): read from the launch log the
+// backend writes, with no subprocess; no log, no delegate part.
+test('the line ends with the delegate state from the launch log, and omits it without one', () => {
   const h = home()
   try {
     const packHome = join(h, 'pack home')
     const env = { DOTAI_DELEGATE_HOME: packHome }
-    assert.equal(run(['claudecode'], ccInput, h, env).stdout.trim().split('\n').length, 1, 'no log: no line')
+    assert.doesNotMatch(run(['claudecode'], ccInput, h, env).stdout, /→/, 'no log: no delegate part')
     mkdirSync(packHome, { recursive: true })
     writeFileSync(join(packHome, 'launches.jsonl'), '')
-    assert.equal(run(['claudecode'], ccInput, h, env).stdout.trim().split('\n').length, 1, 'empty log: no line')
+    assert.doesNotMatch(run(['claudecode'], ccInput, h, env).stdout, /→/, 'empty log: no delegate part')
     const ts = Date.now() - 120000
     writeFileSync(
       join(packHome, 'launches.jsonl'),
@@ -193,8 +193,8 @@ test('a fourth line shows delegate state from the launch log, and is omitted wit
     )
     for (const harness of ['claudecode', 'antigravity']) {
       const lines = run([harness], harness === 'claudecode' ? ccInput : agyInput, h, env).stdout.trim().split('\n')
-      assert.equal(lines.length, 2, harness)
-      assert.match(lines[1], /^delegate: 0 running · last OK 2m ago$/, harness)
+      assert.equal(lines.length, 1, harness)
+      assert.match(lines[0], / │ → delegate: 0 running · last OK 2m ago$/, harness)
     }
   } finally {
     rmSync(h, { recursive: true, force: true })
@@ -217,11 +217,11 @@ test('a payload without quota keeps the last good snapshot instead of overwritin
     const ccBefore = readFileSync(ccFile, 'utf8')
     const noLimits = run(['claudecode'], { model: { display_name: 'Opus' }, context_window: { used_percentage: 5 } }, h)
     assert.equal(readFileSync(ccFile, 'utf8'), ccBefore)
-    assert.match(noLimits.stdout.split('\n')[0], /^Claude │ 5h \S+\s+41%.*ctx 5%/)
+    assert.match(noLimits.stdout.split('\n')[0], /^Opus · ctx 5% │ 5h \S+\s+41%/)
     const emptyLimits = run(['claudecode'], { model: { display_name: 'Opus' }, context_window: { used_percentage: 6 }, rate_limits: {} }, h)
     assert.equal(emptyLimits.status, 0, emptyLimits.stderr)
     assert.equal(readFileSync(ccFile, 'utf8'), ccBefore, 'an empty rate_limits object is no quota block')
-    assert.match(emptyLimits.stdout.split('\n')[0], /^Claude │ 5h \S+\s+41%.*ctx 6%/)
+    assert.match(emptyLimits.stdout.split('\n')[0], /^Opus · ctx 6% │ 5h \S+\s+41%/)
   } finally {
     rmSync(h, { recursive: true, force: true })
   }

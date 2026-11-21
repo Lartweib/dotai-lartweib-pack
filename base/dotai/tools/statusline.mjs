@@ -1,7 +1,7 @@
 // Statusline for Claude Code and agy (pack 0017, update 2026-11-21): one line for the harness
-// that runs it, with its own quota only,
-//   Claude │ 5h ███░░░░░  41% ↻ 2h 13m │ 7d ██░░░░░░  22% ↻ 3d 4h   │ Opus · ctx 34%
-//   Gemini │ 5h █░░░░░░░   8% ↻ 4h 2m  │ 7d ░░░░░░░░   5% ↻ 6d 1h   │ 3.8 Flash (Medium)
+// that runs it: model and context, its own quota, then the delegate state,
+//   Opus · ctx 34% │ 5h ███░░░░░  41% ↻ 2h 13m │ 7d ██░░░░░░  22% ↻ 3d 4h │ → delegate: 0 running · last OK 2m ago
+//   3.8 Flash (Medium) · ctx 12% │ 5h █░░░░░░░   8% ↻ 4h 2m │ 7d ░░░░░░░░   5% ↻ 6d 1h
 // A window the harness does not report (Claude Code sends no five_hour on some plans) or has no
 // data for is left out. Bars and percentages are green, yellow from 50%, red from 80%; NO_COLOR
 // drops the color only.
@@ -18,9 +18,9 @@
 // A payload without its quota block (`rate_limits` before Claude Code's first answer, `quota` in
 // agy) writes nothing, so the last good snapshot survives; the line shows it with the payload's
 // model and context. A snapshot is replaced atomically or not at all.
-// A second line, `delegate: N running · last OK 2m ago`, comes from the launch log that the
+// The delegate part, `→ delegate: N running · last OK 2m ago`, comes from the launch log that the
 // delegate backend and the agent guard write (<pack home>/launches.jsonl, delegate-core.mjs);
-// without that log, or with an empty one, the line is omitted, and the delegate code is loaded only
+// without that log, or with an empty one, it is omitted, and the delegate code is loaded only
 // when the log exists.
 // No subprocesses, one or two small files: it runs on every refresh.
 // Entry point: `node statusline.mjs <claudecode|antigravity>`, stdin from the harness.
@@ -141,10 +141,10 @@ const level = pct => (pct >= 80 ? 31 : pct >= 50 ? 33 : 32) // red, yellow, gree
 const BAR = 8
 const RESET_WIDTH = 7 // `23h 59m`, the longest reset, so the line does not shift as it counts down
 
-// One line for the harness running it: its label, each window it reports (a window it does not
-// report, or with no data, is left out), then the model and context. A stale snapshot keeps its
-// values, dimmed, and shows its age.
-export function render({ label, snap, now }) {
+// One line for the harness running it: model and context, each window it reports (a window it
+// does not report, or with no data, is left out), then `→` and the delegate state when there is
+// one. A stale snapshot keeps its values, dimmed, followed by its age.
+export function render({ snap, now, delegate = null }) {
   const stale = !!snap && now - snap.ts > STALE_SEC
   const paint = (pct, text) => (stale ? sgr(2, text) : sgr(level(pct), text))
   const windows = [
@@ -156,11 +156,12 @@ export function render({ label, snap, now }) {
       const filled = Math.round((w.pct / 100) * BAR)
       const bar = paint(w.pct, '█'.repeat(filled)) + sgr(stale ? 2 : 90, '░'.repeat(BAR - filled))
       const reset = w.reset === null ? '' : `↻ ${formatDuration(w.reset - now).padEnd(RESET_WIDTH)}`
-      return `${name} ${bar} ${paint(w.pct, `${w.pct}%`.padStart(4))} ${stale ? sgr(2, reset) : reset}`.trimEnd()
+      return `${name} ${bar} ${paint(w.pct, `${w.pct}%`.padStart(4))}${reset ? ` ${stale ? sgr(2, reset) : reset}` : ''}`
     })
-  const info = stale ? [`${formatDuration(now - snap.ts)} ago`] : [snap?.model || null, snap?.ctx == null ? null : `ctx ${snap.ctx}%`].filter(Boolean)
+  const info = [snap?.model ? sgr(1, snap.model) : null, snap?.ctx == null ? null : `ctx ${snap.ctx}%`].filter(Boolean).join(' · ')
+  const age = stale ? sgr(2, `${formatDuration(now - snap.ts)} ago`) : null
   const sep = ` ${sgr(90, '│')} `
-  return [sgr(1, label), ...windows, sgr(90, info.join(' · '))].filter(Boolean).join(sep)
+  return [info, ...windows, age, delegate ? sgr(90, `→ ${delegate}`) : null].filter(Boolean).join(sep)
 }
 
 const readJson = f => {
@@ -221,21 +222,20 @@ async function main() {
   const agyFile = join(home, '.gemini', 'antigravity-cli', 'rate_limits.json')
   const harness = harnessArg() ?? (isObject(d.quota) ? 'antigravity' : 'claudecode')
   // Each run still writes its harness's snapshot: the delegate reads both pools from them (0050).
-  let line
+  let snap
   if (harness === 'antigravity') {
     let agy = fromAgy(d, now)
     if (isObject(d.quota)) writeJson(agyFile, agySnapshot(agy))
     else agy = withLive(agyFromSnapshot(readJson(agyFile)), agy)
-    line = render({ label: 'Gemini', snap: { ts: agy.ts, model: agy.model, ctx: agy.ctx, five: agy.gemini.five, week: agy.gemini.week }, now })
+    snap = { ts: agy.ts, model: agy.model, ctx: agy.ctx, five: agy.gemini.five, week: agy.gemini.week }
   } else {
-    let cc = fromClaude(d, now)
+    snap = fromClaude(d, now)
     // An empty object (`rate_limits: {}`) carries no quota either: the snapshot is kept.
-    if (isObject(d.rate_limits) && Object.keys(d.rate_limits).length) writeJson(ccFile, claudeSnapshot(cc))
-    else cc = withLive(claudeFromSnapshot(readJson(ccFile)), cc)
-    line = render({ label: 'Claude', snap: cc, now })
+    if (isObject(d.rate_limits) && Object.keys(d.rate_limits).length) writeJson(ccFile, claudeSnapshot(snap))
+    else snap = withLive(claudeFromSnapshot(readJson(ccFile)), snap)
   }
-  const extra = await delegateLine(process.env, home)
-  process.stdout.write(`${line}\n${extra ? `${extra}\n` : ''}`)
+  const delegate = await delegateLine(process.env, home)
+  process.stdout.write(`${render({ snap, now, delegate })}\n`)
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
