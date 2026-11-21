@@ -51,7 +51,7 @@ The hooks run `node ${DOTAI_PROJECT_TOOLS}/<tool>.mjs` with the path bare, so a 
 
 ## Dropped
 
-Godot MCP (barely used), `godot-claude-skills` (needs the editor), codegraph (no GDScript support; never index Godot projects, pack 0012). `gdlint` on edit is not shipped: it is unused in Godot projects (measurement 6). gdstyle 0.6.0 (measurement 6): fast (0.5 s for 415 files), but its output is style noise and it misses syntax errors; `--check-only` is the gate.
+Both Godot MCP servers, `godot` and `godot-mcp` (barely used), `godot-claude-skills` (needs the editor), codegraph (no GDScript support; never index Godot projects, pack 0012). `gdlint` on edit is not shipped: it is unused in Godot projects (measurement 6). gdstyle 0.6.0 (measurement 6): fast (0.5 s for 415 files), but its output is style noise and it misses syntax errors; `--check-only` is the gate.
 
 ## TODO(trial)
 

@@ -48,7 +48,7 @@ The hooks run `node ${DOTAI_PROJECT_TOOLS}/<tool>.mjs` with the path bare, so a 
 
 ## Dropped
 
-SDD skills (0020), `judgment-day` and `jd-*`, the four `review-*` agents (the base `reviewer` takes the focus as a parameter), GitHub MCP (`gh` instead), RTK (unused).
+SDD skills (0020), `judgment-day` and `jd-*`, the five `review-*` agents (the base `reviewer` takes the focus as a parameter), GitHub MCP (`gh` instead), RTK (unused).
 
 ## agy runs the check on Stop
 
