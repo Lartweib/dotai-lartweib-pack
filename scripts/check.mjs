@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The pack's checks, run before tagging and by CI (pack 0048). No dependencies.
+// The pack's checks, run before each pull request and by CI (pack 0048). No dependencies.
 //   node scripts/check.mjs
 // One line per check: tests, `dotai validate --json` per variant, the git-pack tree check of
 // dotai 0044, the privacy guard over tracked files, and the release tag check when HEAD has a

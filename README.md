@@ -266,11 +266,11 @@ Flat and combinable; each one is applied per project. Each profile's README, at 
 
 ## Versioning and releases
 
-Releases are SemVer tags `vX.Y.Z` on `main`, pinned with `--ref`; the tag always equals `version` in `dotai.yaml`, and GitHub generates the release notes from the merged pull requests. The pack stays on `0.x` until the engine features it waits for are released. dotai identifies a git pack by its repository, not by the manifest `name` ([decision 0048](docs/decisions/0048-versioning-and-release.md)).
+Releases are SemVer tags `vX.Y.Z` on `main`, pinned with `--ref`; the tag always equals `version` in `dotai.yaml`. They are automatic: after each merge to `main`, [release-please](https://github.com/googleapis/release-please) keeps a release pull request open with the next version, computed from the conventional commits (`fix` and `docs` bump the patch, `feat` and `!` the minor while on `0.x`), the `dotai.yaml` bump and `CHANGELOG.md`; merging it tags and publishes the release. The pack stays on `0.x` until the engine features it waits for are released. dotai identifies a git pack by its repository, not by the manifest `name` ([decision 0048](docs/decisions/0048-versioning-and-release.md)).
 
 ## Development
 
-Run `node scripts/check.mjs` before tagging: the tests (`node --test`), `dotai validate` for each variant (`DOTAI` names the binary, else `dotai` on `PATH`), the tree check dotai runs on `pack add`, a privacy guard over tracked files, and the tag against `dotai.yaml`.
+Run `node scripts/check.mjs` before opening a pull request: the tests (`node --test`), `dotai validate` for each variant (`DOTAI` names the binary, else `dotai` on `PATH`), the tree check dotai runs on `pack add`, a privacy guard over tracked files, and the tag against `dotai.yaml`.
 
 Pull requests follow [the template](.github/pull_request_template.md). The `commits` check holds the title and every commit to [conventional commits](https://www.conventionalcommits.org/); run it locally with `node .github/scripts/check-commits.mjs origin/main HEAD`.
 

@@ -32,6 +32,14 @@ The sources do not record other alternatives.
 - Accepted cost: `ENGINE_REF` is bumped by hand, and `validate` only sees what that engine commit knows.
 - Pending: the privacy guard's current hits, and a history scrub, before the repository goes public; switch the engine build to a release binary once dotai tags one.
 
+## Update 2026-11-22: release-please
+
+The release no longer waits on someone remembering to bump and tag. `.github/workflows/release.yml` runs on every push to `main`: the checks (`ci.yml`), then [release-please](https://github.com/googleapis/release-please) (`release-please-config.json`, `.release-please-manifest.json`). It keeps one release pull request open with the next version, the `version` line of `dotai.yaml` (marked `x-release-please-version`) and `CHANGELOG.md`; merging it creates the tag `vX.Y.Z` and the GitHub release, whose notes are the changelog entry.
+
+- **Bumps.** `fix`, `perf`, `revert` and `docs` bump the patch (`docs` is a release type here, since rule and skill text is the pack's behaviour); `feat` and a breaking `!` bump the minor while on `0.x` (`bump-minor-pre-major`). `chore`, `ci`, `build`, `test`, `refactor` and `style` release nothing.
+- **Required checks on the release pull request.** A pull request opened with the workflow token triggers no workflow, so the release job dispatches `ci.yml` and `commits.yml` (`workflow_dispatch`, the title as input) on the release branch; their check runs land on its head commit.
+- **Replaced.** The tag-triggered workflow and its tag-on-main check: release-please tags the merge commit on `main`, from the version it wrote. `ci.yml` no longer runs on its own on `main` pushes; the release workflow calls it.
+
 ## Evidence
 
 - [dotai 0044](https://github.com/Lartweib/dotai/blob/main/docs/decisions/0044-git-pack-distribution.md), [PACK-FORMAT](https://github.com/Lartweib/dotai/blob/main/docs/PACK-FORMAT.md), and the engine's own `ci.yml` and `release.yml` (action pinning by commit, the tag-on-main check).

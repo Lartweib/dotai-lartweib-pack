@@ -1,9 +1,15 @@
 name: Commits
 
-# Not a required check yet: the owner decides whether the branch ruleset requires `commits`.
+# A required check on main. The release workflow dispatches it on the release pull request's
+# branch (a pull request opened with the workflow token triggers no workflow), passing the title.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      title:
+        description: The pull request title
+        required: true
 
 permissions:
   contents: read
@@ -19,7 +25,7 @@ jobs:
           fetch-depth: 0
       - name: Check the commit messages and the pull request title
         env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-          TITLE: ${{ github.event.pull_request.title }}
+          BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          TITLE: ${{ github.event.pull_request.title || inputs.title }}
         run: node .github/scripts/check-commits.mjs "$BASE" "$HEAD" "$TITLE"

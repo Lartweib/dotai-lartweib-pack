@@ -1,16 +1,18 @@
 name: release
 
-# A tag vX.Y.Z on main runs the checks, which also fail when the tag differs from dotai.yaml's
-# version, then publishes the GitHub release with notes generated from the commits (pack 0048).
-# Off while the repository is private.
+# Every push to main runs the checks, then release-please (pack 0048): it opens or updates the
+# release pull request from the conventional commits since the last tag (version in dotai.yaml,
+# CHANGELOG.md), and when that pull request is merged it tags vX.Y.Z and publishes the release.
+# A pull request opened with the workflow token triggers no workflow, so this job dispatches the
+# required checks (ci, commits) on the release branch itself. Off while the repository is private.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
 
 permissions: {}
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -20,28 +22,25 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci.yml
 
-  release:
+  release-please:
     if: ${{ !github.event.repository.private }}
     needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
-      contents: write # create the release
+      contents: write # the release commit, the tag and the release
+      pull-requests: write # the release pull request
+      actions: write # dispatch the checks on the release branch
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: tag is on main
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          commit=$(git rev-parse "refs/tags/$TAG^{commit}")
-          if ! git merge-base --is-ancestor "$commit" origin/main; then
-            echo "::error::$TAG points to $commit, which is not on main"
-            exit 1
-          fi
-      - name: publish
+      - id: rp
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      - name: Run the required checks on the release pull request
+        if: ${{ steps.rp.outputs.pr }}
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" --verify-tag --generate-notes
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ fromJSON(steps.rp.outputs.pr).headBranchName }}
+          TITLE: ${{ fromJSON(steps.rp.outputs.pr).title }}
+        run: |
+          gh workflow run ci.yml --ref "$BRANCH"
+          gh workflow run commits.yml --ref "$BRANCH" -f title="$TITLE"

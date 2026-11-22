@@ -4,11 +4,11 @@ name: ci
 # check and the privacy guard. Every job is off while the repository is private, so nothing
 # runs or bills until it is public.
 on:
-  push:
-    branches: [main]
   pull_request:
-  # The release workflow runs these checks before it publishes.
+  # On main the release workflow calls these checks before release-please runs.
   workflow_call:
+  # The release workflow dispatches them on the release pull request's branch.
+  workflow_dispatch:
 
 permissions:
   contents: read
