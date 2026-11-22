@@ -38,12 +38,12 @@ Playwright itself stays: the `ui` profile uses Playwright scripts or `@playwrigh
 Requirements: [dotai](https://github.com/Lartweib/dotai#install), git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
 
 ```sh
-dotai pack add https://github.com/Lartweib/dotai-lartweib-pack
+dotai pack add https://github.com/Lartweib/dotai-lartweib-pack --ref latest
 dotai install ~/.dotai/packs/github.com/lartweib/dotai-lartweib-pack --variant standalone
 dotai apply --profile web,ui   # inside a project
 ```
 
-Without `--ref`, dotai fetches `main` and `dotai pack update` follows it. To stay on a release, add `--ref` with a tag from the [releases](https://github.com/Lartweib/dotai-lartweib-pack/releases), for example `--ref v0.1.0`; a tag stays put on update until you add the pack again with a newer one.
+`--ref latest` takes the newest [release](https://github.com/Lartweib/dotai-lartweib-pack/releases), and `dotai pack update` moves to the next one when it comes out. To pin one release, use its tag instead (`--ref v0.1.0`); to follow unreleased work, leave out `--ref` and dotai tracks `main`.
 
 The pack requires no harness (`requires: []` in `dotai.yaml`): it installs on Claude Code, agy or both, and delegation needs both. The delegating harness is `primary` in `~/.dotai/packs/dotai-lartweib-pack/delegate.yaml` (`claudecode` when unset); an agy-main user sets:
 
