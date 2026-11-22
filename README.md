@@ -38,13 +38,12 @@ Playwright itself stays: the `ui` profile uses Playwright scripts or `@playwrigh
 Requirements: [dotai](https://github.com/Lartweib/dotai#install), git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
 
 ```sh
-dotai pack add https://github.com/Lartweib/dotai-lartweib-pack --ref v0.1.0
+dotai pack add https://github.com/Lartweib/dotai-lartweib-pack
 dotai install ~/.dotai/packs/github.com/lartweib/dotai-lartweib-pack --variant standalone
 dotai apply --profile web,ui   # inside a project
 ```
 
-> [!NOTE]
-> No release is tagged yet. `--ref v0.1.0` applies once that tag exists; until then, leave out `--ref` and dotai fetches the default branch.
+Without `--ref`, dotai fetches `main` and `dotai pack update` follows it. To stay on a release, add `--ref` with a tag from the [releases](https://github.com/Lartweib/dotai-lartweib-pack/releases), for example `--ref v0.1.0`; a tag stays put on update until you add the pack again with a newer one.
 
 The pack requires no harness (`requires: []` in `dotai.yaml`): it installs on Claude Code, agy or both, and delegation needs both. The delegating harness is `primary` in `~/.dotai/packs/dotai-lartweib-pack/delegate.yaml` (`claudecode` when unset); an agy-main user sets:
 
@@ -267,7 +266,7 @@ Flat and combinable; each one is applied per project. Each profile's README, at 
 
 ## Versioning and releases
 
-Releases are SemVer tags `vX.Y.Z` on `main`, pinned with `--ref`; the tag always equals `version` in `dotai.yaml`, and release notes come from the Conventional Commits. The pack stays on `0.x` until the engine features it waits for are released. dotai identifies a git pack by its repository, not by the manifest `name` ([decision 0048](docs/decisions/0048-versioning-and-release.md)).
+Releases are SemVer tags `vX.Y.Z` on `main`, pinned with `--ref`; the tag always equals `version` in `dotai.yaml`, and GitHub generates the release notes from the merged pull requests. The pack stays on `0.x` until the engine features it waits for are released. dotai identifies a git pack by its repository, not by the manifest `name` ([decision 0048](docs/decisions/0048-versioning-and-release.md)).
 
 ## Development
 
