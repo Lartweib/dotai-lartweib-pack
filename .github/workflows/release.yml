@@ -35,12 +35,15 @@ jobs:
       - id: rp
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
       - name: Run the required checks on the release pull request
-        if: ${{ steps.rp.outputs.pr }}
+        # The output is empty when there is no release pull request; parsed here, not with
+        # fromJSON in env, which failed on the empty value (first run, 2026-11-22).
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          BRANCH: ${{ fromJSON(steps.rp.outputs.pr).headBranchName }}
-          TITLE: ${{ fromJSON(steps.rp.outputs.pr).title }}
+          PR: ${{ steps.rp.outputs.pr }}
         run: |
+          if [ -z "$PR" ]; then echo "no release pull request"; exit 0; fi
+          BRANCH=$(jq -r .headBranchName <<<"$PR")
+          TITLE=$(jq -r .title <<<"$PR")
           gh workflow run ci.yml --ref "$BRANCH"
           gh workflow run commits.yml --ref "$BRANCH" -f title="$TITLE"
