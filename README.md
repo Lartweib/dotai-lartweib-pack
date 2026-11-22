@@ -35,7 +35,7 @@ Playwright itself stays: the `ui` profile uses Playwright scripts or `@playwrigh
 
 ## Install
 
-Requirements: [dotai](https://github.com/Lartweib/dotai#install), git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
+Requirements: [dotai](https://github.com/Lartweib/dotai#install) v0.1.0 or later, git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
 
 ```sh
 dotai pack add https://github.com/Lartweib/dotai-lartweib-pack --ref latest
