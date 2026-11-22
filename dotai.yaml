@@ -1,6 +1,6 @@
 schema: dotai.pack/v1
 name: dotai-lartweib-pack
-version: 0.1.1
+version: 0.1.1 # x-release-please-version (release-please bumps it, pack 0048)
 engine: ">=0.1.0" # dotai v0.1.0 is the first release, and the one with --ref latest
 rulesync: 43.10.0 # the only version whose checksums the engine embeds (dotai 0029)
 harnesses: [claudecode, antigravity-cli, opencode] # compatible (dotai 0047); OpenCode is a preview, managed only when chosen
