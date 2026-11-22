@@ -474,6 +474,7 @@ test('read-only kinds run agy in plan mode and OpenCode without --auto; code kee
   assert.equal(mode(buildArgs('agy', d, 'p', { ...DEFAULTS, agyMode: 'auto' }, jobDir, cwd, 'code')), 'auto', 'auto stays selectable')
   assert.ok(buildArgs('opencode', oc, 'p', cfg, jobDir, cwd, 'code').includes('--auto'))
   assert.match(buildPrompt(jobDir, 'code'), /Write the complete result to result\.md/)
+  assert.match(buildPrompt(jobDir, 'code'), /by their PID, never by name.*Never run git stash/)
   for (const kind of ['research', 'code']) {
     assert.match(buildPrompt(jobDir, kind), /job folder: .+$/)
     assert.doesNotMatch(buildPrompt(jobDir, kind), /["%\r\n]/)

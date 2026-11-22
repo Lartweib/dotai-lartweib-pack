@@ -647,12 +647,13 @@ const READ_ONLY = new Set(['research', 'audit'])
 // cannot write result.md: its reply is the result, saved there by this tool. agy 1.5.3 plan mode
 // read the job folder and kept the accents of its JSON reply (trial 2026-11-19). Plan mode denies
 // shell commands; agy 1.5.13 reached for one to read a file and replied with nothing (trial
-// 2026-11-22), so the read-only prompt names the file tools.
+// 2026-11-22), so the read-only prompt names the file tools. A code job gets the rules whose
+// breaking stops a worker at the shell guard or a permission prompt (2026-11-22).
 export function buildPrompt(jobDir, kind = 'research') {
   if (READ_ONLY.has(kind) || !KINDS.includes(kind)) {
     return `Read spec.md in the job folder and do the task it describes. This is a read-only run: edit no file and reply with the complete result, which is saved to result.md. Read files with your file-reading tools, no shell commands: they are denied here. job folder: ${jobDir}`
   }
-  return `Read spec.md and do the task it describes. Write the complete result to result.md (UTF-8). Both files are in the job folder. Edit only what the task names. Reply with one short line. job folder: ${jobDir}`
+  return `Read spec.md and do the task it describes. Write the complete result to result.md (UTF-8). Both files are in the job folder. Edit only what the task names, with your file-editing tools, not through the shell. Stop only processes you started, by their PID, never by name, and end them all before you finish. Never run git stash. Reply with one short line. job folder: ${jobDir}`
 }
 
 // Where the delegated agy reads its config. `dotai run` starts agy with
