@@ -273,6 +273,8 @@ Releases are SemVer tags `vX.Y.Z` on `main`, pinned with `--ref`; the tag always
 
 Run `node scripts/check.mjs` before tagging: the tests (`node --test`), `dotai validate` for each variant (`DOTAI` names the binary, else `dotai` on `PATH`), the tree check dotai runs on `pack add`, a privacy guard over tracked files, and the tag against `dotai.yaml`.
 
+Pull requests follow [the template](.github/pull_request_template.md). The `commits` check holds the title and every commit to [conventional commits](https://www.conventionalcommits.org/); run it locally with `node .github/scripts/check-commits.mjs origin/main HEAD`.
+
 ## Get help
 
 Questions and bug reports go to the [issues](https://github.com/Lartweib/dotai-lartweib-pack/issues).
