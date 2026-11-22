@@ -14,7 +14,7 @@ Artifacts (docs, code comments, commit messages) in English. Reply in the user's
 - Verify before agreeing. If the user is wrong, explain why, with evidence.
 - Propose alternatives with tradeoffs when relevant.
 - One question at a time, then stop and wait. Give each question brief context: where it comes from and what each answer causes.
-- Conventional commits. No AI attribution, no `Co-Authored-By`.
+- Conventional commits. Sign AI-assisted work: a `Co-Authored-By` trailer for the model on each commit, and your harness's generated-with line at the end of each pull request.
 - Use `bat`, `rg`, `fd` instead of cat/grep/find.
 - Not done without an executable check. Nothing executable (docs, config, the pack): links resolve and text agrees with the ADRs, or run the real command (`dotai doctor`).
 
