@@ -51,7 +51,7 @@ import {
 } from './hook-lib.mjs'
 
 const ASK = {
-  stash: 'shell guard: `git stash` can hide or overwrite work (past incident). Prefer a WIP commit (`git commit -am wip`) or a new branch; approve only if you asked for the stash.',
+  stash: 'shell guard: `git stash` can hide or overwrite work (past incident). Prefer a WIP commit (`git commit -am wip`) or a new branch; to show a test fails before a fix, commit the test, run it, then commit the fix. Approve only if you asked for the stash.',
   reset: 'shell guard: `git reset --hard` drops uncommitted changes (past incident). Prefer a WIP commit or a new branch first; approve only if you asked for it.',
   kill: 'shell guard: killing by name also kills unrelated processes, such as an editor or a dev server the user has open (past incident). Kill by PID instead (`taskkill /PID <n>`, `Stop-Process -Id <n>`, `kill <pid>`); approve only if you asked for it.',
 }
