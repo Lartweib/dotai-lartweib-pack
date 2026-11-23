@@ -623,3 +623,84 @@ test('under an isolated install the delegated agy gets --gemini_dir; without agy
     sb.cleanup()
   }
 })
+
+// agy's catalog (`agy models`), as agy 1.5.15 printed it on 2026-11-23.
+const CATALOG = { FAKE_AGY_MODELS: 'gemini-3.8-flash-high,gemini-3.8-flash-medium,gemini-3.8-flash-low,claude-sonnet-4-6,claude-opus-4-6-thinking,gpt-oss-120b-medium' }
+const lookups = sb => sb.calls(true).filter(c => c.argv.includes('models')).length
+
+test('an agy model outside the catalog is refused by check and by run, before any launch', () => {
+  const sb = sandbox()
+  try {
+    const pair = ['--model', 'gemini-3.8-pro-high', '--effort', 'high']
+    const c = runTool(TOOL, ['check', ...pair], sb, { ...CC, ...CATALOG })
+    assert.equal(c.code, 2, c.out + c.err)
+    assert.match(c.out, /^delegate REJECT agy has no model "gemini-3\.8-pro-high"; it offers gemini-3\.8-flash-high, .*gemini-3\.8-flash-low/m)
+    const r = runTool(TOOL, ['run', ...pair, '--spec', spec(sb), '--kind', 'research'], sb, { ...CC, ...CATALOG })
+    assert.equal(r.code, 2, r.out + r.err)
+    assert.match(r.out, /REJECT agy has no model "gemini-3\.8-pro-high"/)
+    assert.deepEqual(sb.calls(), [], 'agy never ran')
+    const alt = runTool(TOOL, ['check', '--model', 'gemini-3.8-flash-low', '--effort', 'low', '--alt', 'claude-sonnet-4-5:default'], sb, { ...CC, ...CATALOG })
+    assert.equal(alt.code, 2)
+    assert.match(alt.out, /no model "claude-sonnet-4-5"/, 'the alternative is checked too')
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('what check accepts, run launches: every catalog id with its rule passes both', () => {
+  const sb = sandbox()
+  try {
+    const pairs = [
+      ['gemini-3.8-flash-low', 'low'], ['gemini-3.8-flash-medium', 'medium'], ['gemini-3.8-flash-high', 'high'],
+      ['claude-sonnet-4-6', 'default'], ['claude-opus-4-6-thinking', 'default'], ['gpt-oss-120b-medium', 'default'],
+    ]
+    for (const [model, effort] of pairs) {
+      const c = runTool(TOOL, ['check', '--model', model, '--effort', effort], sb, { ...CC, ...CATALOG })
+      assert.equal(c.code, 0, `${model}: ${c.out}`)
+      const r = runTool(TOOL, ['run', '--model', model, '--effort', effort, '--spec', spec(sb), '--kind', 'research'], sb, { ...CC, ...CATALOG })
+      assert.equal(r.code, 0, `${model}: ${r.out}${r.err}`)
+      assert.match(r.out, new RegExp(`OK agy ${model.replace(/\./g, '\.')}/${effort}`))
+    }
+    const alt = runTool(TOOL, ['check', '--model', 'gemini-3.8-flash-high', '--effort', 'high', '--alt', 'claude-sonnet-4-6:default'], sb, { ...CC, ...CATALOG })
+    assert.equal(alt.code, 0, alt.out)
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('the catalog is cached, fetched again once for a new id, and an unreadable one refuses nothing', () => {
+  const sb = sandbox()
+  try {
+    const check = (model, env) => runTool(TOOL, ['check', '--model', model, '--effort', 'low'], sb, { ...CC, ...env })
+    assert.equal(check('gemini-3.8-flash-low', CATALOG).code, 0)
+    assert.equal(check('gemini-3.8-flash-low', CATALOG).code, 0)
+    assert.equal(lookups(sb), 1, 'the second check reads the cache')
+    const grown = { FAKE_AGY_MODELS: `${CATALOG.FAKE_AGY_MODELS},gemini-4-flash-low` }
+    assert.equal(check('gemini-4-flash-low', grown).code, 0, 'an id missing from the cache fetches the list again')
+    assert.equal(lookups(sb), 2)
+    rmSync(join(sb.env.DOTAI_DELEGATE_HOME, 'agy-models.json'))
+    assert.equal(check('gemini-9-flash-low', {}).code, 0, 'agy models failing refuses nothing')
+  } finally {
+    sb.cleanup()
+  }
+})
+
+test('a spec in the Claude Code session scratchpad is accepted; another temp file is not', () => {
+  const sb = sandbox()
+  try {
+    const tmp = join(sb.root, 'os temp')
+    const pad = join(tmp, 'claude', 'abc', 'session', 'scratchpad', 'research')
+    const loose = join(tmp, 'claude', 'abc', 'notes')
+    for (const d of [pad, loose]) mkdirSync(d, { recursive: true })
+    writeFileSync(join(pad, 'spec.md'), '# Task\nList the files.\n')
+    writeFileSync(join(loose, 'spec.md'), '# Task\nList the files.\n')
+    const env = { ...CC, CLAUDE_CODE_TMPDIR: tmp }
+    const ok = runTool(TOOL, ['run', '--model', 'gemini-3.8-flash-low', '--effort', 'low', '--spec', join(pad, 'spec.md')], sb, env)
+    assert.equal(ok.code, 0, ok.out + ok.err)
+    const no = runTool(TOOL, ['run', '--model', 'gemini-3.8-flash-low', '--effort', 'low', '--spec', join(loose, 'spec.md')], sb, env)
+    assert.equal(no.code, 2)
+    assert.match(no.out, /outside the project .*scratchpad/)
+  } finally {
+    sb.cleanup()
+  }
+})

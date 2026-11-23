@@ -19,6 +19,7 @@ import {
   appendLog,
   buildArgs,
   buildPrompt,
+  checkAddDirs,
   checkPair,
   checkRoute,
   decide,
@@ -454,7 +455,10 @@ test('read-only kinds run agy in plan mode and OpenCode without --auto; code kee
     // Without --auto OpenCode 2.0.30 still writes, in and outside the project, since its default
     // edit permission is allow (trial 2026-11-19); its built-in plan agent denies edit.
     assert.equal(ocArgs[ocArgs.indexOf('--agent') + 1], 'plan', kind)
-    assert.match(buildPrompt(jobDir, kind), /read-only.*reply with the complete result/i)
+    assert.match(buildPrompt(jobDir, kind), /read-only.*final reply is the result/i)
+    // The reply is saved for it; a read-only agent that sets out to write result.md gets denied
+    // and replies with nothing (trial 2026-11-23).
+    assert.match(buildPrompt(jobDir, kind), /never write or look for result\.md.*never open the delegate skill/i)
     // Plan mode denies every shell command; agy 1.5.13 reached for one to read a file and replied
     // with nothing (trial 2026-11-22), so the prompt names the file tools.
     assert.match(buildPrompt(jobDir, kind), /file-reading tools.*no shell/i)
@@ -716,4 +720,29 @@ test('a delegated Claude Code with a pid runs in the tree; subagent entries stay
   assert.match(renderTree(entries, NOW), /from agy.*running/)
   assert.match(renderTree(entries, NOW), /sub.*launched/)
   assert.match(statusLine(entries, NOW), /1 running/)
+})
+
+test('--add-dir adds named folders to the workspace, and never the home folder or a secret one', () => {
+  const root = mkdtempSync(join(tmpdir(), 'dotai adddir '))
+  try {
+    const home = join(root, 'home')
+    const docs = join(root, 'other repo', 'docs')
+    for (const d of [join(home, '.ssh'), docs]) mkdirSync(d, { recursive: true })
+    assert.deepEqual(parseArgs(['run', '--add-dir', 'a', '--add-dir', 'b']).flags['add-dir'], ['a', 'b'], 'repeatable')
+    const opts = { cwd: root, env: {}, home }
+    const ok = checkAddDirs([docs], 'agy', opts)
+    assert.equal(ok.ok, true, ok.reason)
+    const d = { model: 'gemini-3.8-flash-low', effortFlag: 'low' }
+    for (const target of ['agy', 'claudecode']) {
+      const args = buildArgs(target, d, 'p', { ...DEFAULTS }, join(root, '.dotai', 'jobs', 'j'), root, 'research', { addDirs: ok.dirs })
+      assert.equal(args[args.indexOf('--add-dir') + 1], ok.dirs[0], target)
+    }
+    assert.match(checkAddDirs([home], 'agy', opts).reason, /home folder or above/)
+    assert.match(checkAddDirs([root], 'agy', opts).reason, /home folder or above/)
+    assert.match(checkAddDirs([join(home, '.ssh')], 'agy', opts).reason, /denied pattern/)
+    assert.match(checkAddDirs([join(root, 'missing')], 'agy', opts).reason, /not found/)
+    assert.match(checkAddDirs([docs], 'opencode', opts).reason, /OpenCode/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

@@ -23,6 +23,23 @@ async function agy() {
   const model = arg('--model') ?? ''
   const mode = env.FAKE_AGY ?? 'ok'
   log({ caller: env.DOTAI_DELEGATE_CALLER, parent: env.DOTAI_DELEGATE_PARENT })
+  // FAKE_AGY_MODELS: the account's catalog, comma-separated, as `agy models` prints it (id, tab,
+  // name). Unset, `agy models` fails, so the catalog is unreadable. Set, a run with an id outside
+  // it fails as agy 1.5.15 does: with an effort error, whatever the effort.
+  const catalog = env.FAKE_AGY_MODELS ? env.FAKE_AGY_MODELS.split(',') : null
+  if (argv.includes('models')) {
+    if (!catalog) {
+      process.stderr.write('error: cannot fetch models\n')
+      process.exit(1)
+    }
+    process.stderr.write('Fetching available models...\n') // agy 1.5.15 prints this on stderr
+    process.stdout.write(catalog.map(m => `${m}\t${m.toUpperCase()}`).join('\n') + '\n')
+    return
+  }
+  if (catalog && !catalog.includes(model)) {
+    process.stderr.write(`error: invalid model selection (--model "${model}" --effort "${arg('--effort') ?? ''}"): --effort is not supported for model "${model}"\n`)
+    process.exit(1)
+  }
   const dir = jobDir(prompt)
   const quota = mode === 'quota' || (mode === 'quota-gemini' && model.startsWith('gemini'))
   if (quota) {
