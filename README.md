@@ -4,7 +4,7 @@
 
 A cost-aware setup for AI coding agents: guard hooks, cheap delegation, CLI-based memory and profiles applied per project.
 
-It is a pack for [dotai](https://github.com/Lartweib/dotai), the cross-harness configuration engine, for **Claude Code** and **Google Antigravity CLI (agy)**, with **OpenCode** as a preview. Think LazyVim on top of Neovim: dotai is the neutral engine, this pack the opinionated distribution, with a base, two variants and ten project profiles.
+It is a pack for [dotai](https://github.com/Lartweib/dotai), the cross-harness configuration engine, for **Claude Code** and **Google Antigravity CLI (agy)**, and **OpenCode** for occasional use. Think LazyVim on top of Neovim: dotai is the neutral engine, this pack the opinionated distribution, with a base, two variants and ten project profiles.
 
 ## Highlights
 
@@ -35,7 +35,7 @@ Playwright itself stays: the `ui` profile uses Playwright scripts or `@playwrigh
 
 ## Install
 
-Requirements: [dotai](https://github.com/Lartweib/dotai#install) v0.1.0 or later, git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
+Requirements: [dotai](https://github.com/Lartweib/dotai#install) v0.2.0 or later, git 2.41 or later, Node.js 22 or later (every hook and tool is a Node script), and the harnesses you use.
 
 ```sh
 dotai pack add https://github.com/Lartweib/dotai-lartweib-pack --ref latest
@@ -52,7 +52,7 @@ delegate:
   primary: agy
 ```
 
-OpenCode is opt-in: pass `--harness claudecode,antigravity-cli,opencode` to `dotai install`. Add `--dry-run` to any `install` or `apply` to see the plan first. Versioning and pinning are in [Versioning and releases](#versioning-and-releases).
+dotai manages every harness it detects; pass `--harness claudecode,antigravity-cli` to `dotai install` to leave OpenCode out. Add `--dry-run` to any `install` or `apply` to see the plan first. Versioning and pinning are in [Versioning and releases](#versioning-and-releases).
 
 ## What you get
 
@@ -71,11 +71,9 @@ A trimmed `dotai install . --variant standalone --dry-run` on a machine with Cla
 ```text
 Install plan · dotai-lartweib-pack 0.1.0 · variant standalone · mode isolated
 root: ~/.dotai/isolated
-note: the preview harness opencode is not managed unless you choose it: [...]; pass --harness opencode to manage it
 
 claudecode · partial isolation · needs a new login
 antigravity-cli · partial isolation · keeps your login
-opencode · preview, not managed
 
 claudecode
   create     ~/.dotai/isolated/claude/CLAUDE.md

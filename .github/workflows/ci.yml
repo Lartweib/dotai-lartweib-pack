@@ -18,8 +18,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # dotai is built from this engine commit (the v0.1.0 tag). Bump it on purpose.
-  ENGINE_REF: 11a2d0eaa0ccd1e979fb521437180024ad194305
+  # dotai is built from this engine commit (the v0.2.0 tag). Bump it on purpose.
+  ENGINE_REF: 36eabaec4d4a1d2e840d37c873f3054767be3860
 
 jobs:
   check:

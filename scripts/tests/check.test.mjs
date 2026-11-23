@@ -101,7 +101,7 @@ test('manifest reads: version and variant names from dotai.yaml', () => {
 
 test('dotai.yaml: every harness is compatible and none is required (dotai 0047, pack 0050)', () => {
   // `harnesses` lists the compatible ones, `requires` the subset an install cannot do without.
-  // OpenCode is a preview harness, managed only when chosen, so it is compatible, never required.
+  // OpenCode is for occasional use, so it is compatible, never required.
   // Nothing is required (pack 0050): the pack installs on Claude Code, agy or both. The engine's
   // validate checks the shape of these fields, not this intent.
   const y = readFileSync(new URL('../../dotai.yaml', import.meta.url), 'utf8')
