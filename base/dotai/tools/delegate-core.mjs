@@ -20,7 +20,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 import { EFFORTS, cliInvocation, denyMatcher, findOnPath, isInside, packHome, projectRootOf, readSection, runCapped } from './hook-lib.mjs'
@@ -60,7 +60,8 @@ const AGY_MODES = ['accept-edits', 'auto', 'plan', 'skip-permissions']
 
 // ---------- arguments and configuration
 
-const VALUE_FLAGS = ['model', 'effort', 'spec', 'prompt', 'title', 'alt', 'to', 'from', 'mode', 'kind', 'dispatch']
+const VALUE_FLAGS = ['model', 'effort', 'spec', 'prompt', 'title', 'alt', 'to', 'from', 'mode', 'kind', 'dispatch', 'add-dir']
+const LIST_FLAGS = ['add-dir'] // repeatable: each one adds a value
 const BOOL_FLAGS = ['over-cap', 'line', 'watch', 'all', 'help']
 
 export function parseArgs(argv) {
@@ -74,7 +75,8 @@ export function parseArgs(argv) {
       if (BOOL_FLAGS.includes(name)) out.flags[name] = true
       else if (VALUE_FLAGS.includes(name)) {
         if (i + 1 >= argv.length) throw new Error(`--${name} needs a value`)
-        out.flags[name] = argv[++i]
+        if (LIST_FLAGS.includes(name)) (out.flags[name] ??= []).push(argv[++i])
+        else out.flags[name] = argv[++i]
       } else throw new Error(`unknown flag --${name}`)
     } else if (!out.cmd) out.cmd = a
     else throw new Error(`unexpected argument "${a}"`)
@@ -315,6 +317,61 @@ function verdict(pool, quota, exhausted, cfg, now) {
 // Only the primary gets here (checkRoute). The work never moves on by itself: the primary does it
 // on the model its cost policy fits the task, or defers and tells the user (0009, 0050).
 const fallbackAdvice = primary => `Do it yourself in ${NAMES[primary] ?? primary} on the model the cost policy fits the task, or defer and tell the user.`
+
+// ---------- agy's model catalog
+// agy runs only the ids `agy models` lists for the account, and it reports an unknown id as an
+// effort error ("--effort is not supported for model gemini-3.8-pro-high", agy 1.5.15, trial
+// 2026-11-23), after check had passed. check and run test the model and the alternative against
+// that list, cached for an hour in <pack home>/agy-models.json and fetched again once when an id
+// is missing from it. When the list cannot be read, nothing is refused on it.
+const CATALOG_TTL_MS = 60 * 60 * 1000
+
+export function parseAgyModels(text) {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .map(l => /^([A-Za-z0-9][\w.-]*)\t/.exec(l)?.[1])
+    .filter(Boolean)
+}
+
+async function listAgyModels(ctx) {
+  const exe = findOnPath('agy', ctx.env)
+  const iso = agyIsolation(ctx.home)
+  if (!exe || iso.error) return null
+  const args = [...(iso.geminiDir ? [`--gemini_dir=${iso.geminiDir}`] : []), 'models']
+  const r = await runCli(exe, args, { cwd: ctx.home, env: ctx.env, timeoutMs: 30000 })
+  const models = r.code === 0 ? parseAgyModels(r.stdout) : []
+  return models.length ? models : null
+}
+
+// The catalog: { models, cached } or null when it cannot be read. `list` is the fetch (a test seam).
+export async function agyModels(ctx, { fresh = false, list = listAgyModels, now = Date.now() } = {}) {
+  const file = join(ctx.dir, 'agy-models.json')
+  if (!fresh) {
+    try {
+      const c = JSON.parse(readFileSync(file, 'utf8'))
+      if (Array.isArray(c.models) && c.models.length && now - c.ts < CATALOG_TTL_MS) return { models: c.models, cached: true }
+    } catch {}
+  }
+  const models = await list(ctx)
+  if (!models) return null
+  try {
+    mkdirSync(ctx.dir, { recursive: true })
+    writeFileSync(file, JSON.stringify({ ts: now, models }) + '\n')
+  } catch {}
+  return { models, cached: false }
+}
+
+// Why the job's agy models cannot run, or null. Only jobs for agy are checked.
+export async function catalogProblem(job, ctx, opts = {}) {
+  if ((job.target ?? secondaryOf(ctx.cfg?.primary ?? DEFAULTS.primary)) !== 'agy') return null
+  const ids = [job.model, job.alt ? parseAlt(job.alt).model : null].filter(Boolean)
+  let cat = await agyModels(ctx, opts)
+  if (!cat) return null
+  if (cat.cached && ids.some(m => !cat.models.includes(m))) cat = (await agyModels(ctx, { ...opts, fresh: true })) ?? cat
+  const missing = ids.filter(m => !cat.models.includes(m))
+  if (!missing.length) return null
+  return `agy has no model ${missing.map(m => `"${m}"`).join(' or ')}; it offers ${cat.models.join(', ')} (agy models).`
+}
 
 export function parseAlt(alt) {
   const i = alt.lastIndexOf(':')
@@ -648,10 +705,15 @@ const READ_ONLY = new Set(['research', 'audit'])
 // read the job folder and kept the accents of its JSON reply (trial 2026-11-19). Plan mode denies
 // shell commands; agy 1.5.13 reached for one to read a file and replied with nothing (trial
 // 2026-11-22), so the read-only prompt names the file tools. A code job gets the rules whose
-// breaking stops a worker at the shell guard or a permission prompt (2026-11-22).
+// breaking stops a worker at the shell guard or a permission prompt (2026-11-22). In a trial
+// (2026-11-23) a read-only agy took "saved to result.md" as its own step, tried to read the
+// delegate tool to learn how, was denied, and ended with an empty reply although it had the
+// answer: agy -p ends a run whose read needs a permission it cannot ask for. So the prompt says the
+// reply is the result, keeps the worker out of the delegate skill and tools, and keeps its reads in
+// the project and the folders the task names (--add-dir). 6 of 6 parallel runs passed after it.
 export function buildPrompt(jobDir, kind = 'research') {
   if (READ_ONLY.has(kind) || !KINDS.includes(kind)) {
-    return `Read spec.md in the job folder and do the task it describes. This is a read-only run: edit no file and reply with the complete result, which is saved to result.md. Read files with your file-reading tools, no shell commands: they are denied here. job folder: ${jobDir}`
+    return `Read spec.md in the job folder and do the task it describes. This is a read-only run: edit no file. Your final reply is the result: give it complete, as text; it is saved for you, so never write or look for result.md. You are the delegated worker: never open the delegate skill, its tools or other job files. Read only the files the task needs, inside the project unless the task names another path, with your file-reading tools, no shell commands: they are denied here. Any other read is denied and ends the run with no result. job folder: ${jobDir}`
   }
   return `Read spec.md and do the task it describes. Write the complete result to result.md (UTF-8). Both files are in the job folder. Edit only what the task names, with your file-editing tools, not through the shell. Stop only processes you started, by their PID, never by name, and end them all before you finish. Never run git stash. Reply with one short line. job folder: ${jobDir}`
 }
@@ -766,7 +828,7 @@ export function isolationVars(iso) {
 
 // Auto-approval only for code jobs (0019): research and audit run agy in plan mode and OpenCode
 // with its plan agent and without --auto, so neither can edit the project with its edit tools.
-export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research', { geminiDir = null, standalone = false } = {}) {
+export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research', { geminiDir = null, standalone = false, addDirs = [] } = {}) {
   const readOnly = kind !== 'code'
   if (target === 'opencode') {
     // Without --auto a permission that asks is rejected at once ("This non-interactive run cannot
@@ -786,6 +848,7 @@ export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research'
     args.push('--permission-mode', readOnly ? 'plan' : 'acceptEdits', ...(readOnly ? [] : ['--permission-prompts', 'none']))
     const rel = relative(cwd, jobDir)
     if (rel.startsWith('..') || isAbsolute(rel)) args.push('--add-dir', jobDir)
+    for (const dir of addDirs) args.push('--add-dir', dir)
     return args
   }
   // First, in one argument, as dotai run passes it (agy needs the absolute path).
@@ -795,6 +858,7 @@ export function buildArgs(target, d, prompt, cfg, jobDir, cwd, kind = 'research'
   args.push('--output-format', 'json', ...(agyMode === 'skip-permissions' ? ['--dangerously-skip-permissions'] : ['--mode', agyMode]))
   const rel = relative(cwd, jobDir)
   if (rel.startsWith('..') || isAbsolute(rel)) args.push('--add-dir', jobDir)
+  for (const dir of addDirs) args.push('--add-dir', dir)
   return args
 }
 
@@ -839,7 +903,33 @@ function jobFromFlags(f, env, primary = DEFAULTS.primary) {
     prompt: f.prompt,
     title: f.title,
     kind: f.kind ?? 'research',
+    addDirs: [].concat(f['add-dir'] ?? f.addDirs ?? []),
   }
+}
+
+// Folders outside the project that the task names (--add-dir), added to the agent's workspace:
+// agy -p and claude -p deny a read outside it, and agy then ends the run with no reply (trial
+// 2026-11-23). Each must be a folder, never the home folder or one above it, and never a path the
+// secrets list denies. Returns { ok, dirs } or { ok: false, reason }.
+export function checkAddDirs(dirs, target, { cwd = process.cwd(), env = process.env, home = homedir() } = {}) {
+  if (!dirs?.length) return { ok: true, dirs: [] }
+  if (target === 'opencode') return { ok: false, reason: '--add-dir is for agy and Claude Code; OpenCode jobs read the project only.' }
+  const deny = denyMatcher(cwd, { env, home })
+  const out = []
+  for (const dir of dirs) {
+    const real = realOr(resolve(cwd, dir))
+    try {
+      if (!statSync(real).isDirectory()) return { ok: false, reason: `--add-dir ${dir} is not a folder.` }
+    } catch {
+      return { ok: false, reason: `--add-dir ${dir} not found.` }
+    }
+    if (isInside(realOr(home), real)) return { ok: false, reason: `--add-dir ${dir} is the home folder or above it; name the folder the task reads.` }
+    // A denied folder's patterns name what is in it (~/.ssh/**), so a path inside counts too.
+    const hit = [real, join(real, 'x')].map(p => deny.match(p)).find(h => h.matched)
+    if (hit) return { ok: false, reason: `--add-dir ${dir} matches the denied pattern ${hit.pattern}; delegated agents never read secrets.` }
+    out.push(real)
+  }
+  return { ok: true, dirs: out }
 }
 
 const realOr = p => {
@@ -863,8 +953,12 @@ export function checkSpec(file, { cwd = process.cwd(), env = process.env, home =
     return { ok: false, reason: `spec file not found: ${file}` }
   }
   const root = projectRootOf(cwd, env, home) ?? cwd
-  if (![root, packDir].some(dir => isInside(real, realOr(dir)))) {
-    return { ok: false, reason: `spec file ${file} is outside the project (${root}) and the pack home; copy it into the project first.` }
+  // Claude Code's session scratchpads (<temp>/claude/.../scratchpad) are where a session writes a
+  // spec it does not keep (otea report, 2026-11-23); only a path under a scratchpad folder counts.
+  const scratch = join(env.CLAUDE_CODE_TMPDIR || tmpdir(), 'claude')
+  const inScratchpad = isInside(real, realOr(scratch)) && relative(realOr(scratch), real).split(/[\\/]/).includes('scratchpad')
+  if (!inScratchpad && ![root, packDir].some(dir => isInside(real, realOr(dir)))) {
+    return { ok: false, reason: `spec file ${file} is outside the project (${root}), the pack home and the session scratchpad; write it in one of them, and run delegate from the project folder.` }
   }
   const deny = denyMatcher(cwd, { env, home })
   const hit = [resolve(file), real].map(p => deny.match(p)).find(h => h.matched)
@@ -917,7 +1011,12 @@ async function runJob(job, opts, ctx, adapter) {
   if (d.action === 'defer') return refuse(3, 'DEFER', d.reason)
   if (d.action === 'ask') return refuse(4, 'ASK', d.reason)
   if (!job.spec && !job.prompt) return refuse(2, 'REJECT', 'no task: pass --spec FILE (or --prompt TEXT for a short one).')
+  const unknown = await catalogProblem(job, ctx)
+  if (unknown) return refuse(2, 'REJECT', unknown)
   const cwd = process.cwd()
+  const added = checkAddDirs(job.addDirs, job.target, { cwd, env: ctx.env, home: ctx.home })
+  if (!added.ok) return refuse(2, 'REJECT', added.reason)
+  job = { ...job, addDirs: added.dirs }
   let specPath = null
   if (job.spec) {
     const s = checkSpec(job.spec, { cwd, env: ctx.env, home: ctx.home, packDir: ctx.dir })
@@ -967,7 +1066,7 @@ async function attempt(job, d, where, opts, ctx, adapter) {
     return { code: 1, text: line(id, 'FAIL', `${shown}: ${iso.error}.`) }
   }
   const prompt = buildPrompt(jobDir, job.kind)
-  const args = buildArgs(target, d, prompt, cfg, jobDir, cwd, job.kind, iso)
+  const args = buildArgs(target, d, prompt, cfg, jobDir, cwd, job.kind, { ...iso, addDirs: job.addDirs })
   // The child knows who called it and under which launch, so a nested delegation is refused
   // (the child is never the primary, checkRoute) and shows under its parent in the tree.
   const env = { ...isolatedEnv(ctx.env, iso), DOTAI_DELEGATE_CALLER: target, DOTAI_DELEGATE_PARENT: id }
@@ -1029,6 +1128,7 @@ function readJobFile(file, flags, env, primary) {
   return {
     ...jobFromFlags({ from: flags.from, ...j, to: j.to ?? flags.to }, env, primary),
     spec: j.spec ? resolve(base, j.spec) : undefined,
+    addDirs: [].concat(j.addDirs ?? []).map(p => resolve(base, p)),
   }
 }
 
@@ -1051,7 +1151,8 @@ function help(adapter) {
   return [
     `delegate-backend (${adapter.variant}): hand research, audits or bulk mechanical work to the other harness (agy or Claude Code), or OpenCode, within quota.`,
     '  run --model M --effort E (--spec FILE | --prompt TEXT) [--title T] [--kind research|audit|code]',
-    '      [--alt M2:E2] [--to agy|claudecode|opencode] [--from claudecode|agy] [--mode interactive|autonomous] [--over-cap]',
+    '      [--alt M2:E2] [--add-dir DIR]... [--to agy|claudecode|opencode] [--from claudecode|agy] [--mode interactive|autonomous] [--over-cap]',
+    '      agy models: only the ids `agy models` lists; --add-dir adds a folder outside the project for the job to read',
     adapter.refuseJobs ? null : '  run --jobs JOB.json...   several jobs in parallel, one job file each',
     '  check --model M --effort E [...]   validate the pair, route and quota; no launch',
     '  status [--line] [--watch]   launch tree, running jobs and quota',
@@ -1130,7 +1231,13 @@ export async function main(argv, adapter, env = process.env) {
     case 'check': {
       const job = jobFromFlags(a.flags, env, ctx.cfg.primary)
       const now = Date.now()
-      const d = decide({ job, quota: readQuota({ env, home: ctx.home, now, staleMinutes: ctx.cfg.staleMinutes }), exhausted: loadExhausted(ctx.quotaState, now), cfg: ctx.cfg, mode, overCap: opts.overCap, now })
+      let d = decide({ job, quota: readQuota({ env, home: ctx.home, now, staleMinutes: ctx.cfg.staleMinutes }), exhausted: loadExhausted(ctx.quotaState, now), cfg: ctx.cfg, mode, overCap: opts.overCap, now })
+      if (d.action !== 'reject') {
+        const unknown = await catalogProblem(job, ctx)
+        const added = checkAddDirs(job.addDirs, job.target, { env, home: ctx.home })
+        if (unknown) d = { action: 'reject', reason: unknown }
+        else if (!added.ok) d = { action: 'reject', reason: added.reason }
+      }
       const codes = { reject: [2, 'REJECT'], defer: [3, 'DEFER'], ask: [4, 'ASK'] }
       if (codes[d.action]) {
         const [code, word] = codes[d.action]

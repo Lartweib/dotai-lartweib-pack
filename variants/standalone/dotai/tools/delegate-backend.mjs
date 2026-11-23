@@ -28,7 +28,7 @@ export const adapter = {
   workersGuide: () =>
     [
       'Several workers (standalone):',
-      '1. Write one JSON job file per worker: {"spec": "task.md", "model": "...", "effort": "...", "title": "...", "alt": "model:effort", "kind": "research|audit|code"}. A relative spec is read from the job file\'s folder.',
+      '1. Write one JSON job file per worker: {"spec": "task.md", "model": "...", "effort": "...", "title": "...", "alt": "model:effort", "kind": "research|audit|code", "addDirs": ["../other-folder"]}. A relative spec or addDirs path is read from the job file\'s folder.',
       `2. Run them in parallel: node "${TOOL}" run --jobs a.json b.json ... (at most maxParallel at once; one result line each, in order).`,
       `3. Watch them in a side terminal: node "${TOOL}" status --watch.`,
       'Workers that depend on each other: run them in sequence. Questions from a worker mid-run are not supported; put every decision in the spec.',

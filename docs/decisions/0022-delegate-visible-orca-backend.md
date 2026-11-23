@@ -128,3 +128,13 @@ Consequences:
 ## Update 2026-10-31: a bad result gets one retry in agy
 
 Confirmed with the author. When an agy result is incomplete or fails its check, Claude sends the feedback back to agy for **one** retry. If the retry also fails, Claude takes the task over. This saves Claude quota, in line with levelling usage with agy.
+
+## Update 2026-11-23: what check accepts, run launches
+
+A session's three research delegations to agy failed, and it did the work on Claude instead (report from a project session). Three causes, each fixed and then checked with real agy 1.5.15 runs through Orca:
+
+- **Model ids.** agy runs only the ids `agy models` lists for the account, and it reports any other id as an effort error, after `check` had passed (`gemini-3.8-pro-high` is not offered). `check` and `run` now test the model and the `--alt` model against that list. The list is cached for an hour in `<pack home>/agy-models.json` and fetched again once when an id is missing. When the list cannot be read, nothing is refused on it. Each offered id ran OK with its rule: the Gemini level as the effort, and `default` for third-party ids.
+- **Where the job reads.** In a read-only run, agy -p ends the run with no reply when a read outside the workspace needs a permission it cannot ask for. A model that went looking for how `result.md` gets written read the delegate skill and then the delegate tool, and the run ended empty: 3 of 4 parallel runs of one spec. The prompt now says the reply is the result, keeps the worker out of the delegate skill and its tools, and keeps reads in the project. After that, 6 of 6 parallel runs of the same spec passed, with about a third of the input tokens. A folder outside the project that the task needs goes in with `--add-dir`, which agy and Claude Code take. It is refused for the home folder or above it, and for any path the secrets list denies. A run that read `../dotai` failed without the flag and passed with it.
+- **Spec location.** A spec may also sit in a Claude Code session scratchpad (`<temp>/claude/.../scratchpad/`), which is where a session writes a spec it does not keep.
+
+Three separate `run` calls in parallel are supported; `workers` is for jobs that need an orchestrator.

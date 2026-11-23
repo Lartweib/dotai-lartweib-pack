@@ -41,7 +41,10 @@ export function sandbox(fakes = ['agy', 'opencode']) {
     project,
     env,
     fakeLog,
-    calls: () => (existsSync(fakeLog) ? readFileSync(fakeLog, 'utf8').trim().split(/\r?\n/).filter(Boolean).map(l => JSON.parse(l)) : []),
+    // The launches; `agy models` lookups (the catalog check) only with all = true.
+    calls: (all = false) =>
+      (existsSync(fakeLog) ? readFileSync(fakeLog, 'utf8').trim().split(/\r?\n/).filter(Boolean).map(l => JSON.parse(l)) : [])
+        .filter(c => all || !(c.name === 'agy' && c.argv.includes('models'))),
     rateLimits: obj => writeFileSync(env.DOTAI_AGY_RATE_LIMITS, JSON.stringify(obj)),
     config: text => {
       mkdirSync(env.DOTAI_DELEGATE_HOME, { recursive: true })
